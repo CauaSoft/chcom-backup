@@ -1,4 +1,4 @@
-# Monta o pacote de instalação que vai para o servidor do cartório.
+﻿# Monta o pacote de instalação que vai para o servidor do cartório.
 #
 #   powershell -ExecutionPolicy Bypass -File branding\criar-pacote.ps1
 #
@@ -70,12 +70,28 @@ Copy-Item (Join-Path $PSScriptRoot 'pacote\LEIA-ME.md') $saida -Force
 
 # Os .bat sao a porta de entrada: duplo clique e acabou. O .ps1 continua ali
 # para quem precisar dos parametros (token, porta, destino diferente).
-Copy-Item (Join-Path $PSScriptRoot 'pacote\INSTALAR.bat') $saida -Force
-Copy-Item (Join-Path $PSScriptRoot 'pacote\DESINSTALAR.bat') $saida -Force
-Copy-Item (Join-Path $PSScriptRoot 'pacote\DIAGNOSTICO.bat') $saida -Force
-Copy-Item (Join-Path $PSScriptRoot 'pacote\diagnostico.ps1') $saida -Force
-Copy-Item (Join-Path $PSScriptRoot 'pacote\CORRIGIR-S3.bat') $saida -Force
-Copy-Item (Join-Path $PSScriptRoot 'pacote\corrigir-s3.ps1') $saida -Force
+#
+# Lista unica das ferramentas do pacote.
+#
+# Isto era seis Copy-Item soltos, e ficou para tras: o DEFINIR-SENHA e o
+# APLICAR-REGRAS foram escritos depois e ninguem lembrou de acrescentar as
+# linhas. O pacote saia sem eles, calado. Agora e uma lista so, e a copia
+# PARA se algum arquivo nao existir - melhor quebrar aqui do que descobrir
+# no servidor do cartorio.
+$ferramentas = @(
+    'INSTALAR.bat'
+    'DESINSTALAR.bat'
+    'DIAGNOSTICO.bat',        'diagnostico.ps1'
+    'CORRIGIR-S3.bat',        'corrigir-s3.ps1'
+    'DEFINIR-SENHA.bat',      'definir-senha.ps1'
+    'APLICAR-REGRAS.bat',     'aplicar-regras.ps1'
+    'RESUMIR-AVISOS.bat',     'resumir-avisos.ps1'
+)
+foreach ($f in $ferramentas) {
+    $de = Join-Path $PSScriptRoot "pacote\$f"
+    if (-not (Test-Path $de)) { throw "criar-pacote: falta $f na pasta pacote\" }
+    Copy-Item $de $saida -Force
+}
 
 # O aviso de licença vai junto: a MIT exige que o texto acompanhe o software
 # distribuído, e este pacote é distribuição.

@@ -134,9 +134,9 @@ if ($vazou -eq 0) { Ok 'nenhuma credencial escrita dentro dos arquivos' }
 # --- 7. o pacote esta completo -----------------------------------------------
 Titulo '7. Pacote completo'
 $obrigatorios = @('INSTALAR.bat', 'DIAGNOSTICO.bat', 'DESINSTALAR.bat', 'CORRIGIR-S3.bat',
-                  'DEFINIR-SENHA.bat', 'APLICAR-REGRAS.bat',
+                  'DEFINIR-SENHA.bat', 'APLICAR-REGRAS.bat', 'RESUMIR-AVISOS.bat',
                   'aplicar-no-cartorio.ps1', 'diagnostico.ps1', 'corrigir-s3.ps1',
-                  'definir-senha.ps1', 'aplicar-regras.ps1', 'LEIA-ME.md')
+                  'definir-senha.ps1', 'aplicar-regras.ps1', 'resumir-avisos.ps1', 'LEIA-ME.md')
 $faltou = @($obrigatorios | Where-Object { -not (Test-Path (Join-Path $Pacote $_)) })
 if ($faltou.Count -gt 0) { foreach ($f in $faltou) { Falha "faltando no pacote: $f" } }
 else { Ok "$($obrigatorios.Count) arquivos obrigatorios presentes" }
