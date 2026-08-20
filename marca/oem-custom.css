@@ -1,0 +1,179 @@
+/* ==========================================================================
+   CH.Com Backup — CSS de marca
+   Projeto: Painel Backup CH.Com (fork de rebrand do Duplicati)
+
+   Baseado em Duplicati, MIT License, Copyright (c) 2026 Duplicati Inc.
+   Esta é uma versão MODIFICADA, com a identidade visual da
+   CH.Com Soluções em Tecnologia LTDA. Não é um produto oficial do Duplicati.
+
+   --------------------------------------------------------------------------
+   COMO ISSO FUNCIONA (leia antes de mexer)
+
+   O servidor do Duplicati procura um arquivo chamado exatamente
+   "oem-custom.css" na PASTA DO EXECUTÁVEL (não na webroot). Se ele existir,
+   o servidor injeta automaticamente uma tag <link> para ele no final do
+   <head> de toda interface servida como SPA.
+   Ver: Duplicati/WebserverCore/Middlewares/StaticFilesMiddleware.cs (linha 80)
+
+   Por ser a ÚLTIMA folha de estilo do <head>, ela vence os estilos originais
+   em caso de empate de especificidade. É por isso que os seletores abaixo
+   usam "html body" — é exatamente o mesmo seletor que o Duplicati usa para
+   declarar as variáveis, e como o nosso vem depois, o nosso ganha.
+   Não é preciso !important em lugar nenhum.
+
+   ESCOPO: este arquivo colore a interface NOVA (ngclient), que é a que o
+   Duplicati abre por padrão. A interface clássica (ngax) não é servida como
+   SPA por padrão, então NÃO recebe esta injeção — ela é tratada à parte.
+
+   --------------------------------------------------------------------------
+   A PALETA
+
+   O Duplicati constrói toda a interface sobre escalas de 12 tons em HSL.
+   Trocar a marca = trocar a matiz e a saturação dessas escalas, mantendo a
+   luminosidade, que é o que garante o contraste entre texto e fundo.
+
+   Cores da CH.Com convertidas para HSL:
+     #00A8FF  (azul neon)      = hsl(200.5, 100%, 50%)
+     #14161C  (fundo escuro)   = hsl(225,  17%,  9%)
+     #C0C6D1  (prata / texto)  = hsl(219,  16%, 79%)
+
+   Cada escala vai de 1 a 12. No tema claro ela caminha de claro para escuro;
+   no tema escuro, o contrário. O tom 8 é o âncora — é a cor "pura" da marca,
+   e é igual nos dois temas. Aqui o tom 8 é exatamente #00A8FF.
+   ========================================================================== */
+
+html body {
+  /* ---- Azul CH.Com — matiz 200.5, saturação 100% -----------------------
+     Substitui o azul padrão do Duplicati, que era hsl(217, 91%, …).
+     O tom 8 é #00A8FF exato. A matiz é 200.5 e não 200 de propósito:
+     arredondar para 200 devolve #00AAFF, dois pontos de verde acima da
+     cor da marca. CSS aceita matiz fracionária, então não há motivo para
+     aceitar o arredondamento. */
+
+  --primary-1: light-dark(hsl(200.5, 100%, 96%), hsl(200.5, 100%, 10%));
+  --primary-2: light-dark(hsl(200.5, 100%, 91%), hsl(200.5, 100%, 15%));
+  --primary-3: light-dark(hsl(200.5, 100%, 85%), hsl(200.5, 100%, 21%));
+  --primary-4: light-dark(hsl(200.5, 100%, 79%), hsl(200.5, 100%, 27%));
+  --primary-5: light-dark(hsl(200.5, 100%, 72%), hsl(200.5, 100%, 33%));
+  --primary-6: light-dark(hsl(200.5, 100%, 65%), hsl(200.5, 100%, 39%));
+  --primary-7: light-dark(hsl(200.5, 100%, 58%), hsl(200.5, 100%, 45%));
+  --primary-8: light-dark(hsl(200.5, 100%, 50%), hsl(200.5, 100%, 50%)); /* #00A8FF */
+  --primary-9: light-dark(hsl(200.5, 100%, 42%), hsl(200.5, 100%, 62%));
+  --primary-10: light-dark(hsl(200.5, 100%, 33%), hsl(200.5, 100%, 73%));
+  --primary-11: light-dark(hsl(200.5, 100%, 22%), hsl(200.5, 100%, 85%));
+  --primary-12: light-dark(hsl(200.5, 100%, 10%), hsl(200.5, 100%, 97%));
+
+  --primary-g2: linear-gradient(180deg, hsl(200.5, 100%, 65%) 0%, hsl(200.5, 100%, 50%) 50%);
+  --primary-g3: linear-gradient(180deg, hsl(200.5, 100%, 79%) 0%, hsl(200.5, 100%, 50%) 50%);
+
+  /* Cor do texto que fica EM CIMA do azul (botões primários).
+
+     Atenção, isto é uma correção, não uma escolha estética: o padrão do
+     Duplicati aqui era branco. Branco sobre #00A8FF dá contraste de 2,6:1,
+     abaixo do mínimo de 4,5:1 exigido pela WCAG — texto de botão ilegível.
+     Preto sobre #00A8FF dá 8:1. O azul da CH.Com é mais claro que o azul
+     original do Duplicati, e é por isso que o texto precisa inverter. */
+  --primary-c8: var(--dark-text);
+
+  /* ---- Cinzas CH.Com — matiz 222, levemente azulada --------------------
+     Substitui os cinzas neutros (saturação 0%) do Duplicati.
+     No tema escuro, o tom 2 é o fundo da aplicação inteira: é o #14161C.
+     Os tons 9 a 11 caem na faixa do prata #C0C6D1 (texto secundário). */
+
+  --base-1: light-dark(hsl(222, 8%, 100%), hsl(222, 16%, 6.5%));
+  --base-2: light-dark(hsl(222, 8%, 98%), hsl(222, 16%, 9.4%)); /* #14161C */
+  --base-3: light-dark(hsl(222, 8%, 94.5%), hsl(222, 16%, 12.5%));
+  --base-4: light-dark(hsl(222, 8%, 84.75%), hsl(222, 16%, 17.5%));
+  --base-5: light-dark(hsl(222, 8%, 79.75%), hsl(222, 16%, 21%));
+  --base-6: light-dark(hsl(222, 10%, 66.25%), hsl(222, 16%, 29%));
+  --base-7: light-dark(hsl(222, 10%, 54.5%), hsl(222, 16%, 34.5%));
+  --base-8: light-dark(hsl(222, 10%, 46%), hsl(222, 16%, 54%));
+  --base-9: light-dark(hsl(222, 10%, 35.65%), hsl(222, 16%, 64.5%));
+  --base-10: light-dark(hsl(222, 10%, 25.3%), hsl(222, 16%, 73%));
+  --base-11: light-dark(hsl(222, 10%, 14.95%), hsl(222, 16%, 86.5%));
+  --base-12: light-dark(hsl(222, 10%, 4.6%), hsl(222, 16%, 100%));
+
+  --base-g2: linear-gradient(180deg, hsl(222, 10%, 66.25%) 0%, hsl(222, 10%, 46%) 50%);
+  --base-g3: linear-gradient(180deg, hsl(222, 10%, 73%) 0%, hsl(222, 10%, 46%) 50%);
+  --base-g6: linear-gradient(180deg, hsl(222, 10%, 25.3%) 0%, hsl(222, 10%, 14.95%) 50%);
+  --base-g7: linear-gradient(180deg, hsl(222, 10%, 35.65%) 0%, hsl(222, 10%, 14.95%) 50%);
+
+  /* ---- Cor de apoio — matiz 212 ----------------------------------------
+     O padrão do Duplicati aqui era roxo, hsl(258, 90%, …), que brigava com
+     o azul da CH.Com. Trazido para um azul mais fundo, que acompanha a
+     marca sem competir com o neon. */
+
+  --accent-1: light-dark(hsl(212, 85%, 95.75%), hsl(212, 85%, 9.25%));
+  --accent-2: light-dark(hsl(212, 85%, 91.5%), hsl(212, 85%, 16.5%));
+  --accent-3: light-dark(hsl(212, 85%, 87.25%), hsl(212, 85%, 24.75%));
+  --accent-4: light-dark(hsl(212, 85%, 83%), hsl(212, 85%, 33%));
+  --accent-5: light-dark(hsl(212, 85%, 78%), hsl(212, 85%, 41.25%));
+  --accent-6: light-dark(hsl(212, 85%, 74.5%), hsl(212, 85%, 49.5%));
+  --accent-7: light-dark(hsl(212, 85%, 70.25%), hsl(212, 85%, 57.75%));
+  --accent-8: light-dark(hsl(212, 85%, 66%), hsl(212, 85%, 66%));
+  --accent-9: light-dark(hsl(212, 85%, 51.15%), hsl(212, 85%, 74.5%));
+  --accent-10: light-dark(hsl(212, 85%, 36.3%), hsl(212, 85%, 83%));
+  --accent-11: light-dark(hsl(212, 85%, 21.45%), hsl(212, 85%, 91.5%));
+  --accent-12: light-dark(hsl(212, 85%, 6.6%), hsl(212, 85%, 100%));
+
+  --accent-g2: linear-gradient(180deg, hsl(212, 85%, 74.5%) 0%, hsl(212, 85%, 66%) 50%);
+  --accent-g3: linear-gradient(180deg, hsl(212, 85%, 83%) 0%, hsl(212, 85%, 66%) 50%);
+
+  /* ---- NÃO ALTERADO DE PROPÓSITO ----------------------------------------
+     As escalas --success-* (verde), --warn-* (amarelo) e --error-* (vermelho)
+     ficam como estão. Elas não são decoração: são o sinal de que um backup
+     deu certo, deu aviso ou falhou. Verde precisa continuar verde. Pintar
+     essas cores com a marca tornaria o painel mais bonito e menos útil. */
+}
+
+
+/* ==========================================================================
+   REMOVE O "- powered by Duplicati" DO CABEÇALHO
+
+   Ao definir window.BRANDING_NAME (ver oem-custom.js), o ngclient monta o
+   cabeçalho com dois textos: o nome que passamos, e logo abaixo um
+   "- powered by Duplicati" que está ESCRITO FIXO dentro do bundle compilado.
+   Não é uma variável, não é configurável — é literal no JavaScript, e não há
+   como editá-lo sem o repositório-fonte do ngclient.
+
+   Então escondemos por CSS. O resultado é o mesmo e não depende de rebuild.
+
+   Sobre a licença: a MIT exige preservar o aviso de copyright e o texto da
+   licença JUNTO DO SOFTWARE — o que fazemos em LICENSE e NOTICE-CHCOM.md,
+   ambos intactos no repositório. Ela não exige atribuição na interface, e
+   remover este texto é permitido. O crédito ao Duplicati continua onde a
+   licença pede.
+
+   O !important é necessário: o Angular gera o seletor com o atributo de
+   escopo do componente (.custom-logo-container[_ngcontent-xxx]
+   .logo-subtext[_ngcontent-xxx]), e sem o !important o nosso perde na
+   especificidade mesmo vindo depois.
+   ========================================================================== */
+
+.custom-logo-container .logo-subtext {
+  display: none !important;
+}
+
+
+/* ==========================================================================
+   ESCONDE OS LINKS PARA O SITE DO DUPLICATI
+
+   O menu lateral traz "Documentation" e "Visit forum" apontando para
+   duplicati.com. São links úteis para quem desenvolve, mas dentro de um
+   cartório eles levam o cliente ao site de outro produto — e revelam de onde
+   o CH.Com Backup vem, sem necessidade.
+
+   O seletor casa pelo DESTINO do link, não pelo texto. Texto muda de idioma
+   e de versão; o endereço não. Assim continua funcionando quando a interface
+   for traduzida ou reorganizada.
+
+   Isto é só apresentação: a licença MIT exige o aviso de copyright junto do
+   software, e ele segue intacto em LICENSE e NOTICE-CHCOM.md.
+   ========================================================================== */
+
+a[href*="duplicati.com"],
+a[href*="forum.duplicati"],
+a[href*="docs.duplicati"],
+a[href*="github.com/duplicati"] {
+  display: none !important;
+}

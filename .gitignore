@@ -1,0 +1,41 @@
+# Dependencias
+node_modules/
+painel/node_modules/
+
+# Compilado
+dist/
+painel/dist/
+*.tsbuildinfo
+
+# O BANCO DO PAINEL. Contem o historico e os TOKENS de todos os cartorios.
+# Quem tem o token consegue enviar relatorio falso em nome de um cartorio.
+dados/
+painel/dados/
+*.db
+*.db-wal
+*.db-shm
+
+# Credenciais
+.env
+.env.*
+!.env.example
+*.key
+config-aws.json
+
+# Lista de servidores para configuracao em lote: contem as SENHAS de acesso
+# ao backup de cada cartorio. E o arquivo mais sensivel deste projeto.
+servidores.json
+servidores.*.json
+
+# Resultado de diagnostico rodado num servidor de cliente
+diagnostico-*.txt
+diagnostico-resultado.txt
+
+# Pacote montado (gerado por marca/criar-pacote.ps1)
+dist/
+*.zip
+
+npm-debug.log*
+*.log
+.DS_Store
+Thumbs.db

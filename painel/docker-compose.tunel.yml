@@ -1,0 +1,82 @@
+# ============================================================================
+#  Painel Backup CH.Com - servidor proprio, sem abrir porta no roteador
+#
+#  Use ESTE arquivo quando o painel roda numa maquina da empresa (nao num
+#  VPS). Ele publica o painel por um tunel: a maquina liga PARA FORA e a
+#  Cloudflare entrega o trafego por dentro dessa conexao.
+#
+#      docker compose -f docker-compose.tunel.yml up -d --build
+#
+#  POR QUE TUNEL E NAO ABRIR PORTA
+#
+#  1. Funciona atras de CGNAT. Boa parte das operadoras no Brasil nao entrega
+#     IP publico de verdade em plano comum: o cliente fica atras do NAT da
+#     operadora e simplesmente NAO EXISTE porta para redirecionar. Nenhuma
+#     configuracao de roteador resolve isso.
+#
+#  2. Funciona com IP que muda. Sem tunel seria preciso DNS dinamico, e um IP
+#     trocando de madrugada derruba os relatorios de todos os cartorios ate
+#     alguem perceber.
+#
+#  3. Nao abre porta nenhuma na rede da empresa. Abrir a 443 do escritorio
+#     para a internet expoe a rede inteira ao que houver de errado ali; num
+#     ambiente que guarda dado de cartorio, isso pesa.
+#
+#  4. O certificado HTTPS fica com a Cloudflare - sem certificado para
+#     renovar e sem porta 80 aberta para validar.
+#
+#  ANTES DE SUBIR
+#    1. Coloque seu dominio na Cloudflare (plano gratuito serve).
+#    2. Crie um tunel em Zero Trust > Networks > Tunnels e copie o token.
+#    3. No tunel, aponte o hostname publico para  http://painel:3000
+#    4. Grave o token no arquivo .env ao lado deste, assim:
+#         TUNEL_TOKEN=cole-o-token-aqui
+#       O .env ja esta no .gitignore - o token nao pode ir para o repositorio
+#       nem para a pasta de entrega na rede.
+# ============================================================================
+
+services:
+  painel:
+    build: .
+    container_name: painel-backup-chcom
+    restart: unless-stopped
+
+    # Sem `ports`: quem alcanca o painel e o tunel, pela rede interna do
+    # Docker. Nada fica escutando na rede da empresa.
+    expose:
+      - '3000'
+
+    environment:
+      NODE_ENV: production
+      PORT: '3000'
+      DB_PATH: /dados/painel.db
+
+    volumes:
+      - dados:/dados
+
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://localhost:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  tunel:
+    image: cloudflare/cloudflared:latest
+    container_name: painel-tunel
+    restart: unless-stopped
+
+    # O token identifica o tunel e vale como credencial: nunca escrever aqui.
+    command: tunnel --no-autoupdate run --token ${TUNEL_TOKEN}
+
+    depends_on:
+      - painel
+
+volumes:
+  dados:

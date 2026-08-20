@@ -1,0 +1,80 @@
+# ============================================================================
+#  Painel Backup CH.Com - publicacao na internet
+#
+#  Use ESTE arquivo no servidor, no lugar do docker-compose.yml:
+#
+#      docker compose -f docker-compose.producao.yml up -d --build
+#
+#  A diferenca para o outro: aqui entra um proxy HTTPS na frente, e o painel
+#  deixa de ter qualquer porta aberta para fora. Quem fala com a internet e o
+#  Caddy; o painel so e alcancavel pela rede interna do Docker.
+#
+#  ANTES DE SUBIR
+#    1. Edite o Caddyfile: seu dominio e seu e-mail.
+#    2. Aponte o dominio (registro A) para o IP deste servidor.
+#    3. Libere as portas 80 e 443 no firewall. A 80 e obrigatoria: e por ela
+#       que o Let's Encrypt confirma que o dominio e seu.
+# ============================================================================
+
+services:
+  painel:
+    build: .
+    container_name: painel-backup-chcom
+    restart: unless-stopped
+
+    # Sem `ports`. De proposito.
+    #
+    # O painel nao fala TLS. Publicar a porta dele aqui deixaria o token de
+    # cada cartorio viajando em texto aberto pela internet - e o token e o
+    # que autentica o cartorio. Quem escuta a rede passa a poder mandar
+    # relatorio falso em nome de qualquer um deles.
+    expose:
+      - '3000'
+
+    environment:
+      NODE_ENV: production
+      PORT: '3000'
+      DB_PATH: /dados/painel.db
+
+    volumes:
+      - dados:/dados
+
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://localhost:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  proxy:
+    image: caddy:2-alpine
+    container_name: painel-proxy
+    restart: unless-stopped
+
+    ports:
+      - '80:80'
+      - '443:443'
+
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Os certificados vivem em volume. Sem isto, cada `docker compose up`
+      # pediria certificado novo ao Let's Encrypt - que tem limite semanal por
+      # dominio, e estourar o limite deixa o painel sem HTTPS por dias.
+      - caddy_dados:/data
+      - caddy_config:/config
+      - caddy_log:/var/log/caddy
+
+    depends_on:
+      - painel
+
+volumes:
+  dados:
+  caddy_dados:
+  caddy_config:
+  caddy_log:
