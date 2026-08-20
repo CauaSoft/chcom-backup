@@ -68,6 +68,44 @@ manda relatório para outro sistema, a URL do painel é **acrescentada** à
 lista — o envio antigo continua funcionando. Isso aparece na tela ao final,
 quando acontece.
 
+## As ferramentas — dois cliques cada
+
+| Arquivo | O que faz |
+|---|---|
+| `DIAGNOSTICO.bat` | diz o que está instalado, o que falta, se o programa caiu e quando o backup rodou |
+| `RESUMIR-AVISOS.bat` | mostra os avisos do backup **agrupados por tipo**, com um exemplo de cada |
+| `APLICAR-REGRAS.bat` | aplica as regras padrão (filtros, cópia de arquivo aberto, novas tentativas) |
+| `DEFINIR-SENHA.bat` | define uma senha nova, sem precisar saber a atual |
+| `CORRIGIR-S3.bat` | conserta o erro `s3-aws is not supported` |
+| `DESINSTALAR.bat` | tira a marca e devolve o Duplicati original |
+
+O `DIAGNOSTICO.bat` e o `RESUMIR-AVISOS.bat` **não alteram nada**, só olham.
+Pode rodar à vontade.
+
+### Por que o RESUMIR-AVISOS existe
+
+Um backup grande gera milhares de linhas de aviso, e quase todas são a mesma
+coisa repetida — o mesmo motivo, caminhos diferentes. Mandar esse log inteiro
+para alguém analisar não ajuda: some no meio do volume.
+
+O `RESUMIR-AVISOS.bat` lê os relatórios que o próprio programa já guardou e
+mostra assim:
+
+```
+     20x  PermissionDenied
+          Excluding path due to permission denied: C:\Windows\CSC\v2.0.6\
+      8x  UnsupportedOption
+          The supplied option ---*\pagefile.sys is not supported
+
+    O QUE FAZER
+    Ha opcao invalida gravada (nome comecando com tres tracos ou mais).
+    Rode o APLICAR-REGRAS.bat: ele apaga essas e grava no lugar certo.
+```
+
+Cabe numa tela. **Tire um print e mande** — é tudo que o suporte precisa ver.
+Ele roda **no servidor do cartório**, e pede a senha do CH.Com Backup daquele
+servidor.
+
 ## Situações comuns
 
 **"Este script precisa ser executado como Administrador"** — você abriu o
