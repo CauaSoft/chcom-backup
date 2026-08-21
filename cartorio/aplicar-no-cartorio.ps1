@@ -199,7 +199,9 @@ function Achar-Duplicati {
 
     # 4. caminhos comuns
     $candidatos += @(
+        "$env:ProgramFiles\CH.Com Backup 2"
         "$env:ProgramFiles\Duplicati 2"
+        "${env:ProgramFiles(x86)}\CH.Com Backup 2"
         "${env:ProgramFiles(x86)}\Duplicati 2"
         "$env:LOCALAPPDATA\Programs\Duplicati 2"
         "$env:ProgramFiles\Duplicati"

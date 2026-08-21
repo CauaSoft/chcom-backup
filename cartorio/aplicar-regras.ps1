@@ -263,21 +263,65 @@ if ($Simular) {
     exit 0
 }
 
-# --- entrar -------------------------------------------------------------------
-$senha = PedirSenha
-if (-not $senha) { Aviso 'cancelado - nada foi alterado.'; exit 0 }
+<#
+    Entra no programa. Ate tres tentativas, e diz o que REALMENTE aconteceu.
 
-try {
-    $login = Invoke-RestMethod "$base/api/v1/auth/login" -Method Post -TimeoutSec 20 `
-        -ContentType 'application/json' `
-        -Body (@{ Password = $senha; RememberMe = $false } | ConvertTo-Json)
-} catch {
-    Erro 'senha recusada. Nada foi alterado.'
-    Nota 'Se ninguem definiu senha neste servidor, rode antes o DEFINIR-SENHA.bat.'
-    exit 1
-} finally {
-    $senha = $null; [GC]::Collect()
+    Isto era um try/catch que respondia "senha recusada" para qualquer falha,
+    e abortava na primeira. Duas coisas erradas nisso:
+
+    - Um erro de digitacao custava rodar o .bat de novo, do zero.
+    - Quando o problema NAO era a senha - versao antiga sem essa rota, o
+      programa caindo no meio, a porta ocupada por outra coisa - a mensagem
+      mandava o tecnico atras da senha, que estava certa o tempo todo.
+
+    Agora o codigo HTTP decide: 401 e 403 sao senha; o resto nao e, e o
+    script fala o que e.
+#>
+function EntrarNoPrograma([string]$endereco) {
+    for ($tentativa = 1; $tentativa -le 3; $tentativa++) {
+        $senha = PedirSenha
+        if (-not $senha) { Aviso 'cancelado - nada foi alterado.'; return $null }
+
+        try {
+            return Invoke-RestMethod "$endereco/api/v1/auth/login" -Method Post -TimeoutSec 20 `
+                -ContentType 'application/json' `
+                -Body (@{ Password = $senha; RememberMe = $false } | ConvertTo-Json)
+        } catch {
+            $codigo = 0
+            if ($_.Exception.Response) { $codigo = [int]$_.Exception.Response.StatusCode }
+
+            if ($codigo -eq 401 -or $codigo -eq 403) {
+                if ($tentativa -lt 3) {
+                    Aviso "senha recusada - tentativa $tentativa de 3."
+                    continue
+                }
+                Erro 'senha recusada tres vezes. Nada foi alterado.'
+                Nota 'E a senha do CH.Com Backup DESTE servidor - a mesma de abrir'
+                Nota "  $endereco  no navegador daqui."
+                Nota 'Nao e a senha do Painel, nem a da AWS, nem a do Windows.'
+                Nota 'Esqueceu? O DEFINIR-SENHA.bat troca sem precisar saber a atual.'
+                return $null
+            }
+
+            if ($codigo -eq 404) {
+                Erro 'este servidor tem uma versao do programa sem essa rota de acesso.'
+                Nota 'Rode o DIAGNOSTICO.bat para ver a versao instalada.'
+                return $null
+            }
+
+            Erro 'nao consegui entrar no programa. Nada foi alterado.'
+            if ($codigo -gt 0) { Nota "resposta do servidor: $codigo" }
+            Nota $_.Exception.Message
+            return $null
+        } finally {
+            $senha = $null
+            [GC]::Collect()
+        }
+    }
 }
+
+$login = EntrarNoPrograma $base
+if (-not $login) { exit 1 }
 $cab = @{ Authorization = "Bearer $($login.AccessToken)" }
 
 <#

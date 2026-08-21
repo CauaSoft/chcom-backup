@@ -59,12 +59,60 @@ function CaminhoDe([string]$pasta, [string]$arquivo) {
     return ($pasta.TrimEnd('\') + '\' + $arquivo)
 }
 
+<#
+    Descobre onde o programa esta instalado.
+
+    Era uma lista de tres pastas com "Duplicati 2" no nome. Nao serve: um
+    servidor real apareceu com a instalacao em
+
+        C:\Program Files\CH.Com Backup 2
+
+    e o script dizia "nao encontrei a instalacao" numa maquina onde o
+    programa estava rodando na frente dele. Pior ainda porque este e o script
+    que se recomenda a quem perdeu a senha - o caminho de saida travava.
+
+    A ordem vai do mais confiavel para o mais generico. O primeiro item nao
+    depende de nome de pasta nenhum: se o programa esta RODANDO, o proprio
+    Windows diz onde o executavel esta.
+#>
 function AcharDuplicati {
-    foreach ($c in @('C:\Program Files\Duplicati 2',
-                     'C:\Program Files (x86)\Duplicati 2',
-                     "$env:LOCALAPPDATA\Programs\Duplicati 2")) {
-        if (Test-Path (CaminhoDe $c 'Duplicati.GUI.TrayIcon.exe')) { return $c }
+    $candidatos = @()
+
+    # 1. processo em execucao - nao chuta nome de pasta
+    foreach ($nome in @('Duplicati.GUI.TrayIcon', 'Duplicati.Server', 'Duplicati.WindowsService')) {
+        foreach ($x in @(Get-Process -Name $nome -ErrorAction SilentlyContinue)) {
+            try { if ($x.Path) { $candidatos += Split-Path $x.Path -Parent } } catch { }
+        }
     }
+
+    # 2. servico instalado
+    try {
+        foreach ($s in @(Get-CimInstance Win32_Service -Filter "Name LIKE '%Duplicati%'" -ErrorAction Stop)) {
+            if ($s.PathName) {
+                $limpo = $s.PathName.Trim('"').Split('"')[0]
+                if (Test-Path $limpo) { $candidatos += Split-Path $limpo -Parent }
+            }
+        }
+    } catch { }
+
+    # 3. caminhos comuns, ja com o nome da marca
+    $candidatos += @(
+        "$env:ProgramFiles\CH.Com Backup 2"
+        "$env:ProgramFiles\Duplicati 2"
+        "${env:ProgramFiles(x86)}\CH.Com Backup 2"
+        "${env:ProgramFiles(x86)}\Duplicati 2"
+        "$env:LOCALAPPDATA\Programs\Duplicati 2"
+        'C:\Duplicati 2'
+        'D:\Duplicati 2'
+    )
+
+    # Vale o primeiro que tenha mesmo o executavel dentro.
+    foreach ($exe in @('Duplicati.GUI.TrayIcon.exe', 'Duplicati.Server.exe')) {
+        foreach ($c in ($candidatos | Where-Object { $_ } | Select-Object -Unique)) {
+            if (Test-Path (CaminhoDe $c $exe)) { return $c }
+        }
+    }
+
     throw 'nao encontrei a instalacao do CH.Com Backup nesta maquina.'
 }
 

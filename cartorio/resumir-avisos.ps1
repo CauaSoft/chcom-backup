@@ -171,23 +171,59 @@ try {
     Write-Host ""
     exit 1
 }
+<#
+    Entra no programa. Ate tres tentativas, e diz o que REALMENTE aconteceu.
 
-$senha = PedirSenha
-if (-not $senha) { Aviso 'cancelado.'; exit 0 }
+    Um try/catch que responde "senha recusada" para qualquer falha manda o
+    tecnico atras da senha mesmo quando o problema e outro - versao antiga
+    sem essa rota, o programa caindo no meio, a porta ocupada. O codigo HTTP
+    e que decide: 401 e 403 sao senha, o resto nao e.
+#>
+function EntrarNoPrograma([string]$endereco) {
+    for ($tentativa = 1; $tentativa -le 3; $tentativa++) {
+        $senha = PedirSenha
+        if (-not $senha) { Aviso 'cancelado.'; return $null }
 
-try {
-    $login = Invoke-RestMethod "$base/api/v1/auth/login" -Method Post -TimeoutSec 20 `
-        -ContentType 'application/json' `
-        -Body (@{ Password = $senha; RememberMe = $false } | ConvertTo-Json)
-} catch {
-    Erro 'senha recusada.'
-    Nota 'Se ninguem definiu senha neste servidor, rode antes o DEFINIR-SENHA.bat.'
-    Write-Host ""
-    exit 1
-} finally {
-    $senha = $null
-    [GC]::Collect()
+        try {
+            return Invoke-RestMethod "$endereco/api/v1/auth/login" -Method Post -TimeoutSec 20 `
+                -ContentType 'application/json' `
+                -Body (@{ Password = $senha; RememberMe = $false } | ConvertTo-Json)
+        } catch {
+            $codigo = 0
+            if ($_.Exception.Response) { $codigo = [int]$_.Exception.Response.StatusCode }
+
+            if ($codigo -eq 401 -or $codigo -eq 403) {
+                if ($tentativa -lt 3) {
+                    Aviso "senha recusada - tentativa $tentativa de 3."
+                    continue
+                }
+                Erro 'senha recusada tres vezes.'
+                Nota 'E a senha do CH.Com Backup DESTE servidor - a mesma de abrir'
+                Nota "  $endereco  no navegador daqui."
+                Nota 'Nao e a senha do Painel, nem a da AWS, nem a do Windows.'
+                Nota 'Esqueceu? O DEFINIR-SENHA.bat troca sem precisar saber a atual.'
+                return $null
+            }
+
+            if ($codigo -eq 404) {
+                Erro 'este servidor tem uma versao do programa sem essa rota de acesso.'
+                Nota 'Rode o DIAGNOSTICO.bat para ver a versao instalada.'
+                return $null
+            }
+
+            Erro 'nao consegui entrar no programa.'
+            if ($codigo -gt 0) { Nota "resposta do servidor: $codigo" }
+            Nota $_.Exception.Message
+            return $null
+        } finally {
+            $senha = $null
+            [GC]::Collect()
+        }
+    }
 }
+
+$login = EntrarNoPrograma $base
+if (-not $login) { Write-Host ""; exit 1 }
 
 $cabecalho = @{ Authorization = "Bearer $($login.AccessToken)" }
 $lista = @(Invoke-RestMethod "$base/api/v1/backups" -Headers $cabecalho -TimeoutSec 20)
