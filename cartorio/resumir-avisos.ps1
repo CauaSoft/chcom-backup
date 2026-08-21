@@ -278,11 +278,16 @@ foreach ($item in $lista) {
     # --- o que fazer --------------------------------------------------------
     $textoTudo = ($ordenado | ForEach-Object { $_.Tipo + ' ' + $_.Exemplo }) -join "`n"
 
+    # Reconhece o caso pela ETIQUETA, nao pelo texto.
+    #
+    # O texto da mensagem e TRADUZIDO - num servidor em portugues sai "A opcao
+    # fornecida ... nao e suportada". Procurar "is not supported" ali nao acha
+    # nada, e o script diria que esta tudo bem num servidor cheio de problema.
+    # A etiqueta entre colchetes ([...-UnsupportedOption]) nunca e traduzida.
     $opcaoInvalida = $textoTudo -match 'UnsupportedOption|-{3,}'
-    $permissao     = $textoTudo -match 'PermissionDenied|permission denied'
-    $travado       = $textoTudo -match 'used by another process|being used by'
-    $sumiu         = $textoTudo -match 'MissingFile|FileNotFound|did not exist'
-
+    $permissao     = $textoTudo -match 'PermissionDenied'
+    $travado       = $textoTudo -match 'PathProcessingFailed|used by another process'
+    $sumiu         = $textoTudo -match 'MissingFile|FileNotFound|DeletedFile'
     Write-Host ""
     Write-Host "    O QUE FAZER" -ForegroundColor Cyan
 
