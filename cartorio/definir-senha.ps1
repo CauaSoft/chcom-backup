@@ -116,9 +116,33 @@ function AcharDuplicati {
     throw 'nao encontrei a instalacao do CH.Com Backup nesta maquina.'
 }
 
+<#
+    AS PORTAS QUE O PROGRAMA PODE OCUPAR.
+
+    O icone da bandeja NAO usa so a 8200. Quando ele sobe o servidor dentro
+    de si, passa uma lista:
+
+        --webservice-port=8200,8300,8400,8500,8600,8700,8800,8900,8989
+
+    e fica com a PRIMEIRA que estiver livre. Isso e do proprio Duplicati
+    (HostedInstanceKeeper.cs), nao configuracao de ninguem.
+
+    A consequencia e a armadilha inteira deste script: se o programa antigo
+    nao morreu de verdade, ele continua segurando a 8200, o novo sobe calado
+    na 8300, e ficam DOIS rodando. Perguntar "a 8200 responde?" da SIM - mas
+    quem respondeu foi o antigo, com a senha antiga. Foi exatamente assim que
+    apareceu "a senha foi enviada, mas a conferencia nao passou" num servidor
+    onde a senha estava certa.
+#>
+$PORTAS_POSSIVEIS = @(8200, 8300, 8400, 8500, 8600, 8700, 8800, 8900, 8989)
+
 function NoAr([int]$porta) {
     try { $c = New-Object Net.Sockets.TcpClient; $c.Connect('127.0.0.1', $porta); $c.Close(); return $true }
     catch { return $false }
+}
+
+function PortasOcupadas {
+    return @($PORTAS_POSSIVEIS | Where-Object { NoAr $_ })
 }
 
 function EsperarSubir([int]$porta, [int]$segundos = 40) {
@@ -127,6 +151,47 @@ function EsperarSubir([int]$porta, [int]$segundos = 40) {
         Start-Sleep -Milliseconds 500
     }
     return $false
+}
+
+# Espera a porta ficar LIVRE. O contrario do EsperarSubir, e igualmente
+# necessario: o Windows nao solta a porta no instante em que o processo morre.
+function EsperarLiberar([int]$porta, [int]$segundos = 20) {
+    for ($i = 0; $i -lt $segundos * 2; $i++) {
+        if (-not (NoAr $porta)) { return $true }
+        Start-Sleep -Milliseconds 500
+    }
+    return $false
+}
+
+<#
+    Encerra o programa DE VERDADE.
+
+    Matar so o Duplicati.GUI.TrayIcon nao basta. Quem segura a porta e o
+    banco pode ser o Duplicati.Server, ou o servico do Windows - e o servico,
+    se ninguem o parar, reinicia sozinho e o script briga com ele a noite
+    inteira.
+#>
+function PararTudo {
+    try {
+        foreach ($s in @(Get-Service -Name '*Duplicati*' -ErrorAction SilentlyContinue)) {
+            if ($s.Status -eq 'Running') {
+                Nota "parando o servico $($s.Name)"
+                Stop-Service -Name $s.Name -Force -ErrorAction SilentlyContinue
+            }
+        }
+    } catch { }
+
+    foreach ($nome in @('Duplicati.GUI.TrayIcon', 'Duplicati.Server', 'Duplicati.WindowsService')) {
+        Get-Process -Name $nome -ErrorAction SilentlyContinue |
+            Stop-Process -Force -ErrorAction SilentlyContinue
+    }
+    Start-Sleep -Seconds 2
+
+    $vivos = @()
+    foreach ($nome in @('Duplicati.GUI.TrayIcon', 'Duplicati.Server', 'Duplicati.WindowsService')) {
+        $vivos += @(Get-Process -Name $nome -ErrorAction SilentlyContinue)
+    }
+    return $vivos
 }
 
 # ------------------------------------------------------------------------------
@@ -237,34 +302,62 @@ function ApagarParametros {
 }
 
 try {
+    # A porta vai FIXA junto com a senha, no mesmo arquivo de parametros.
+    #
+    # Sem isso o icone da bandeja usa a lista dele (8200,8300,8400,...) e, se
+    # a 8200 estiver ocupada por um restinho da instancia anterior, sobe na
+    # 8300 sem dizer nada. O resultado e um servidor novo numa porta que
+    # ninguem procura, e o antigo respondendo na 8200 com a senha antiga.
     [System.IO.File]::WriteAllText($paramsFile,
-        "--webservice-password=$senha`r`n", [System.Text.UTF8Encoding]::new($false))
+        "--webservice-password=$senha`r`n--webservice-port=$PortaDuplicati`r`n",
+        [System.Text.UTF8Encoding]::new($false))
 
     Write-Host ""
     Nota 'reiniciando o CH.Com Backup com a senha nova...'
 
-    # Encerrar de verdade, e CONFERIR. Se o processo continuar vivo, iniciar
-    # outro por cima nao troca senha nenhuma: o segundo nao consegue tomar a
-    # porta, morre calado, e o script diria que deu certo. Descoberto testando
-    # sem elevacao, onde o Stop-Process devolve "Acesso negado".
-    Get-Process -Name 'Duplicati.GUI.TrayIcon' -ErrorAction SilentlyContinue |
-        Stop-Process -Force -ErrorAction SilentlyContinue
-    Start-Sleep -Seconds 2
-
-    $teimoso = @(Get-Process -Name 'Duplicati.GUI.TrayIcon' -ErrorAction SilentlyContinue)
-    if ($teimoso.Count -gt 0) {
+    # Encerrar de verdade, e CONFERIR. Se sobrar processo vivo, iniciar outro
+    # por cima nao troca senha nenhuma: o novo escorrega para outra porta,
+    # ficam dois rodando, e a conferencia fala com o antigo.
+    $vivos = PararTudo
+    if ($vivos.Count -gt 0) {
         throw 'nao consegui encerrar o CH.Com Backup para trocar a senha. ' +
               'Feche esta janela e rode o DEFINIR-SENHA.bat de novo, aceitando ' +
               'o aviso de administrador do Windows.'
     }
 
+    # A porta tem que estar LIVRE antes de subir o novo. O Windows demora
+    # alguns segundos para soltar, e subir em cima de uma porta ainda presa
+    # e o que empurra o programa para a 8300.
+    if (-not (EsperarLiberar $PortaDuplicati)) {
+        throw "a porta $PortaDuplicati continua ocupada depois de encerrar o " +
+              'programa. Ha outra coisa usando essa porta neste servidor. ' +
+              'Reinicie o servidor e rode o DEFINIR-SENHA.bat de novo.'
+    }
+
     Start-Process -FilePath $tray -ArgumentList "--parameters-file=`"$paramsFile`""
 
     if (-not (EsperarSubir $PortaDuplicati)) {
+        $outras = @(PortasOcupadas)
+        if ($outras.Count -gt 0) {
+            throw "o programa subiu na porta $($outras -join ', ') em vez da " +
+                  "$PortaDuplicati. Encerre o CH.Com Backup pelo icone ao lado " +
+                  'do relogio e rode o DEFINIR-SENHA.bat de novo.'
+        }
         throw "o programa nao voltou a responder na porta $PortaDuplicati."
     }
-    Ok 'programa no ar'
+    Ok "programa no ar na porta $PortaDuplicati"
 
+    # Duas portas respondendo significa duas instancias. A conferencia abaixo
+    # pode ate passar, e o cartorio fica com dois programas fazendo backup do
+    # mesmo lugar ao mesmo tempo.
+    $ocupadas = @(PortasOcupadas)
+    if ($ocupadas.Count -gt 1) {
+        Write-Host ""
+        Aviso "ATENCAO: ha mais de um CH.Com Backup rodando neste servidor."
+        Nota  "portas respondendo: $($ocupadas -join ', ')"
+        Nota  'Reinicie o servidor para deixar so um. Dois programas fazendo o'
+        Nota  'mesmo backup ao mesmo tempo brigam pelo destino na nuvem.'
+    }
     # --- confere de verdade: entra com a senha nova ---------------------------
     Start-Sleep -Seconds 2
     $funcionou = $false
@@ -299,11 +392,15 @@ try {
 
     # O backup vem antes de qualquer outra coisa: se sobrou o programa
     # parado por causa de uma troca de senha, isso e pior que a senha velha.
+    #
+    # Religa com a porta FIXA. Sem isso, uma religada de emergencia poderia
+    # colocar o programa na 8300 - de onde nenhuma outra ferramenta iria
+    # procurar por ele.
     if (-not (NoAr $PortaDuplicati)) {
         Write-Host ""
         Aviso 'o programa nao estava no ar - ligando de volta.'
         try {
-            Start-Process -FilePath $tray
+            Start-Process -FilePath $tray -ArgumentList "--webservice-port=$PortaDuplicati"
             if (EsperarSubir $PortaDuplicati 30) { Ok 'BACKUP NO AR' }
             else { Erro 'NAO subiu. Abra o CH.Com Backup pelo menu Iniciar.' }
         } catch { Erro "nao consegui iniciar: $($_.Exception.Message)" }

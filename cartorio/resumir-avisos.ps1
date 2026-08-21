@@ -157,20 +157,52 @@ function TrechoUtil([string]$linha) {
 
 # ==============================================================================
 
+<#
+    Acha em que porta o programa esta, e avisa se houver mais de um.
+
+    O icone da bandeja sobe o servidor com a lista
+    8200,8300,8400,8500,8600,8700,8800,8900,8989 e fica com a primeira livre.
+    Procurar so na 8200 tem dois modos de errar:
+
+      - o programa esta na 8300 (a 8200 estava ocupada quando ele subiu) e
+        este script diria que nao ha programa nenhum;
+      - ha DOIS rodando, e este script leria os avisos de um deles sem saber
+        que existe outro fazendo o mesmo backup ao lado.
+#>
+$PORTAS_POSSIVEIS = @(8200, 8300, 8400, 8500, 8600, 8700, 8800, 8900, 8989)
+
+function NoAr([int]$porta) {
+    try { $c = New-Object Net.Sockets.TcpClient; $c.Connect('127.0.0.1', $porta); $c.Close(); return $true }
+    catch { return $false }
+}
+
 Titulo 'Resumo dos avisos do backup'
 
-$base = "http://127.0.0.1:$PortaDuplicati"
+$portasVivas = @($PORTAS_POSSIVEIS | Where-Object { NoAr $_ })
 
-try {
-    $c = New-Object Net.Sockets.TcpClient
-    $c.Connect('127.0.0.1', $PortaDuplicati)
-    $c.Close()
-} catch {
-    Erro "o CH.Com Backup nao esta respondendo na porta $PortaDuplicati."
+if ($portasVivas.Count -eq 0) {
+    Erro 'o CH.Com Backup nao esta respondendo neste servidor.'
     Nota 'Abra o programa pelo icone ao lado do relogio e rode isto de novo.'
     Write-Host ""
     exit 1
 }
+
+# Se a porta normal responde, e nela que se fala. Senao, na que houver.
+if ($portasVivas -contains $PortaDuplicati) { $porta = $PortaDuplicati }
+else {
+    $porta = $portasVivas[0]
+    Aviso "o programa esta na porta $porta, e nao na $PortaDuplicati."
+}
+
+if ($portasVivas.Count -gt 1) {
+    Aviso "ATENCAO: ha $($portasVivas.Count) programas rodando neste servidor."
+    Nota  "portas respondendo: $($portasVivas -join ', ')"
+    Nota  'Os dois fazem o mesmo backup e brigam pelo destino na nuvem.'
+    Nota  'Reinicie este servidor e rode o DIAGNOSTICO.bat para conferir.'
+    Nota  "O resumo abaixo e so do programa da porta $porta."
+}
+
+$base = "http://127.0.0.1:$porta"
 <#
     Entra no programa. Ate tres tentativas, e diz o que REALMENTE aconteceu.
 

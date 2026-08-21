@@ -217,14 +217,44 @@ function PedirSenha {
 
 Titulo 'Regras padrao do CH.Com Backup'
 
-$base = "http://127.0.0.1:$PortaDuplicati"
-try { $c = New-Object Net.Sockets.TcpClient; $c.Connect('127.0.0.1', $PortaDuplicati); $c.Close() }
-catch {
-    Erro "o CH.Com Backup nao esta respondendo na porta $PortaDuplicati."
+# O icone da bandeja sobe o servidor com a lista
+# 8200,8300,8400,8500,8600,8700,8800,8900,8989 e fica com a primeira livre.
+# Gravar as regras no programa errado - ou nao achar programa nenhum porque
+# ele escorregou para a 8300 - sao os dois modos de errar aqui.
+$PORTAS_POSSIVEIS = @(8200, 8300, 8400, 8500, 8600, 8700, 8800, 8900, 8989)
+
+function NoAr([int]$p) {
+    try { $c = New-Object Net.Sockets.TcpClient; $c.Connect('127.0.0.1', $p); $c.Close(); return $true }
+    catch { return $false }
+}
+
+$portasVivas = @($PORTAS_POSSIVEIS | Where-Object { NoAr $_ })
+
+if ($portasVivas.Count -eq 0) {
+    Erro 'o CH.Com Backup nao esta respondendo neste servidor.'
     Nota 'Abra o atalho na area de trabalho e rode isto de novo.'
     exit 1
 }
-Ok 'programa no ar'
+
+# Se a porta normal responde, e nela que se fala. Senao, na que houver.
+if ($portasVivas -notcontains $PortaDuplicati) {
+    $PortaDuplicati = $portasVivas[0]
+    Aviso "o programa esta na porta $PortaDuplicati, e nao na 8200."
+}
+
+if ($portasVivas.Count -gt 1) {
+    Write-Host ''
+    Erro "HA $($portasVivas.Count) PROGRAMAS RODANDO NESTE SERVIDOR."
+    Nota  "portas respondendo: $($portasVivas -join ', ')"
+    Nota  'Gravar as regras em um deles nao conserta o outro, e os dois fazem'
+    Nota  'o mesmo backup ao mesmo tempo - que e um problema maior que as regras.'
+    Nota  'Reinicie este servidor primeiro. Depois rode o DIAGNOSTICO.bat e'
+    Nota  'confira que sobrou so a 8200. So entao rode este script.'
+    exit 1
+}
+
+$base = "http://127.0.0.1:$PortaDuplicati"
+Ok "programa no ar na porta $PortaDuplicati"
 
 Write-Host ''
 Nota 'Vai aplicar na configuracao do servidor:'

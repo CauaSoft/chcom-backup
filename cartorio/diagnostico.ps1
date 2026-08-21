@@ -110,13 +110,26 @@ $versao = if ($pasta) { (Get-Item (Join-Path $pasta 'Duplicati.GUI.TrayIcon.exe'
 
 # --- esta rodando? -----------------------------------------------------------
 $procs = @(Get-Process -Name 'Duplicati*')
+<#
+    A tela responde - e em QUANTAS portas?
 
-# --- a tela responde? --------------------------------------------------------
-$portaViva = $null
-foreach ($porta in @(8200, 8300)) {
-    try { $c = New-Object Net.Sockets.TcpClient; $c.Connect('127.0.0.1', $porta); $c.Close(); $portaViva = $porta; break }
+    O icone da bandeja sobe o servidor com a lista
+    8200,8300,8400,8500,8600,8700,8800,8900,8989 e fica com a primeira livre.
+    Entao, se um programa antigo nao morreu direito, o novo sobe na 8300 sem
+    avisar e ficam DOIS rodando ao mesmo tempo, cada um fazendo o backup da
+    mesma origem para o mesmo destino.
+
+    Isto parava na primeira porta que respondesse (break), e por isso nunca
+    veria o segundo. Agora varre a lista inteira, porque a coisa util a
+    descobrir nao e "responde?" e sim "responde mais de uma vez?".
+#>
+$PORTAS_POSSIVEIS = @(8200, 8300, 8400, 8500, 8600, 8700, 8800, 8900, 8989)
+$portasVivas = @()
+foreach ($porta in $PORTAS_POSSIVEIS) {
+    try { $c = New-Object Net.Sockets.TcpClient; $c.Connect('127.0.0.1', $porta); $c.Close(); $portasVivas += $porta }
     catch { }
 }
+$portaViva = if ($portasVivas.Count -gt 0) { $portasVivas[0] } else { $null }
 
 # --- a marca esta aplicada? --------------------------------------------------
 $marcaArquivos = @('oem-custom.css', 'oem-custom.js', 'chcom.ico')
@@ -253,8 +266,27 @@ if ($procs.Count -gt 0) {
     Item 'erro' 'DESLIGADO - nenhum processo rodando'
 }
 
-if ($portaViva) { Item 'ok' "tela responde em http://localhost:$portaViva" }
-else { Item 'erro' 'a tela nao responde em nenhuma porta' }
+if ($portasVivas.Count -eq 0) {
+    Item 'erro' 'a tela nao responde em nenhuma porta'
+} elseif ($portasVivas.Count -eq 1) {
+    Item 'ok' "tela responde em http://localhost:$portaViva"
+    if ($portaViva -ne 8200) {
+        Detalhe "atencao: a porta normal e a 8200, e este servidor esta na $portaViva."
+        Detalhe 'As outras ferramentas procuram na 8200. Reinicie o servidor para'
+        Detalhe 'ele voltar para a porta normal.'
+    }
+} else {
+    # Duas telas respondendo = dois programas rodando. Os dois fazem backup da
+    # mesma origem para o mesmo destino, ao mesmo tempo. E o destino na nuvem
+    # nao foi feito para dois donos: um sobrescreve o indice do outro.
+    Item 'erro' "HA $($portasVivas.Count) PROGRAMAS RODANDO AO MESMO TEMPO"
+    Detalhe "portas respondendo: $($portasVivas -join ', ')"
+    Detalhe 'Isso acontece quando um programa antigo nao morreu e o novo subiu'
+    Detalhe 'numa porta livre. Os dois fazem o mesmo backup e brigam pelo'
+    Detalhe 'destino na nuvem.'
+    Detalhe 'CONSERTO: reinicie este servidor. Depois rode este diagnostico de'
+    Detalhe 'novo e confira que sobrou so a 8200.'
+}
 
 Secao 'Marca CH.Com'
 if (-not $pasta) {
