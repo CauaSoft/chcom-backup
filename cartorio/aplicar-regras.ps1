@@ -213,20 +213,96 @@ function PedirSenha {
     return $t.Text
 }
 
-# ==============================================================================
+# --- achar o programa e as portas --------------------------------------------
 
-Titulo 'Regras padrao do CH.Com Backup'
+<#
+    O icone da bandeja sobe o servidor com a lista
 
-# O icone da bandeja sobe o servidor com a lista
-# 8200,8300,8400,8500,8600,8700,8800,8900,8989 e fica com a primeira livre.
-# Gravar as regras no programa errado - ou nao achar programa nenhum porque
-# ele escorregou para a 8300 - sao os dois modos de errar aqui.
+        8200,8300,8400,8500,8600,8700,8800,8900,8989
+
+    e fica com a PRIMEIRA livre (HostedInstanceKeeper.cs no codigo do
+    Duplicati). Dai vem o problema que este trecho resolve: se um programa
+    antigo nao morreu direito, o novo sobe calado na 8300 e ficam DOIS
+    rodando, cada um fazendo o mesmo backup para o mesmo destino.
+
+    Este script ja chegou a apenas RECUSAR rodar nesse caso, mandando
+    reiniciar o servidor. Estava certo e era inutil: quem esta no cartorio
+    quer o backup limpo, nao um diagnostico. Agora ele conserta - com
+    confirmacao, porque derrubar o programa e uma decisao de quem esta la.
+#>
 $PORTAS_POSSIVEIS = @(8200, 8300, 8400, 8500, 8600, 8700, 8800, 8900, 8989)
 
 function NoAr([int]$p) {
     try { $c = New-Object Net.Sockets.TcpClient; $c.Connect('127.0.0.1', $p); $c.Close(); return $true }
     catch { return $false }
 }
+
+function EsperarSubir([int]$p, [int]$segundos = 40) {
+    for ($i = 0; $i -lt $segundos * 2; $i++) {
+        if (NoAr $p) { return $true }
+        Start-Sleep -Milliseconds 500
+    }
+    return $false
+}
+
+function EsperarLiberar([int]$p, [int]$segundos = 20) {
+    for ($i = 0; $i -lt $segundos * 2; $i++) {
+        if (-not (NoAr $p)) { return $true }
+        Start-Sleep -Milliseconds 500
+    }
+    return $false
+}
+
+function CaminhoDe([string]$pasta, [string]$arquivo) {
+    return ($pasta.TrimEnd('\') + '\' + $arquivo)
+}
+
+# Acha a instalacao. O processo em execucao vem primeiro porque nao depende
+# de nome de pasta - um servidor real esta em "CH.Com Backup 2", nao em
+# "Duplicati 2".
+function AcharPrograma {
+    $candidatos = @()
+    foreach ($nome in @('Duplicati.GUI.TrayIcon', 'Duplicati.Server', 'Duplicati.WindowsService')) {
+        foreach ($x in @(Get-Process -Name $nome -ErrorAction SilentlyContinue)) {
+            try { if ($x.Path) { $candidatos += Split-Path $x.Path -Parent } } catch { }
+        }
+    }
+    $candidatos += @(
+        "$env:ProgramFiles\CH.Com Backup 2"
+        "$env:ProgramFiles\Duplicati 2"
+        "${env:ProgramFiles(x86)}\CH.Com Backup 2"
+        "${env:ProgramFiles(x86)}\Duplicati 2"
+        "$env:LOCALAPPDATA\Programs\Duplicati 2"
+    )
+    foreach ($c in ($candidatos | Where-Object { $_ } | Select-Object -Unique)) {
+        if (Test-Path (CaminhoDe $c 'Duplicati.GUI.TrayIcon.exe')) {
+            return (CaminhoDe $c 'Duplicati.GUI.TrayIcon.exe')
+        }
+    }
+    return $null
+}
+
+function PararTudo {
+    try {
+        foreach ($s in @(Get-Service -Name '*Duplicati*' -ErrorAction SilentlyContinue)) {
+            if ($s.Status -eq 'Running') { Stop-Service -Name $s.Name -Force -ErrorAction SilentlyContinue }
+        }
+    } catch { }
+    foreach ($nome in @('Duplicati.GUI.TrayIcon', 'Duplicati.Server', 'Duplicati.WindowsService')) {
+        Get-Process -Name $nome -ErrorAction SilentlyContinue |
+            Stop-Process -Force -ErrorAction SilentlyContinue
+    }
+    Start-Sleep -Seconds 2
+    $vivos = @()
+    foreach ($nome in @('Duplicati.GUI.TrayIcon', 'Duplicati.Server', 'Duplicati.WindowsService')) {
+        $vivos += @(Get-Process -Name $nome -ErrorAction SilentlyContinue)
+    }
+    return $vivos
+}
+
+# ==============================================================================
+
+Titulo 'Regras padrao do CH.Com Backup'
 
 $portasVivas = @($PORTAS_POSSIVEIS | Where-Object { NoAr $_ })
 
@@ -236,21 +312,71 @@ if ($portasVivas.Count -eq 0) {
     exit 1
 }
 
+if ($portasVivas.Count -gt 1) {
+    Write-Host ''
+    Aviso "HA $($portasVivas.Count) PROGRAMAS RODANDO NESTE SERVIDOR."
+    Nota  "portas respondendo: $($portasVivas -join ', ')"
+    Nota  'Os dois fazem o mesmo backup, para o mesmo destino, ao mesmo tempo.'
+    Nota  'Isso precisa ser resolvido antes das regras.'
+    Write-Host ''
+    Nota  'Posso deixar so um: encerro os dois e subo um na porta 8200.'
+    Nota  'Se houver backup rodando agora, ele para - e retoma na proxima vez.'
+    Write-Host ''
+
+    $tray = AcharPrograma
+    if (-not $tray) {
+        Erro 'nao achei o executavel do programa para religar depois.'
+        Nota 'Reinicie este servidor e rode o APLICAR-REGRAS.bat de novo.'
+        exit 1
+    }
+
+    $r = Read-Host '  Deixar so um programa rodando? (S para sim)'
+    if ($r -notmatch '^[SsYy]') {
+        Aviso 'nada foi alterado.'
+        Nota  'Reinicie este servidor e rode o APLICAR-REGRAS.bat de novo.'
+        exit 1
+    }
+
+    Nota 'encerrando...'
+    $vivos = PararTudo
+    if ($vivos.Count -gt 0) {
+        Erro 'nao consegui encerrar o programa.'
+        Nota 'Feche esta janela e rode o APLICAR-REGRAS.bat de novo, aceitando'
+        Nota 'o aviso de administrador do Windows.'
+        exit 1
+    }
+
+    # A porta tem que estar LIVRE antes de subir. O Windows nao solta na hora,
+    # e subir em cima de porta ainda presa e o que empurra para a 8300 - o
+    # defeito que estamos consertando.
+    if (-not (EsperarLiberar 8200)) {
+        Erro 'a porta 8200 continua ocupada por outra coisa neste servidor.'
+        Nota 'Reinicie este servidor e rode o APLICAR-REGRAS.bat de novo.'
+        exit 1
+    }
+
+    # Porta FIXA: sem isto ele usaria a lista de novo e poderia escorregar.
+    Start-Process -FilePath $tray -ArgumentList '--webservice-port=8200'
+    if (-not (EsperarSubir 8200)) {
+        Erro 'o programa nao voltou a responder na porta 8200.'
+        Nota 'Abra o CH.Com Backup pelo menu Iniciar e rode isto de novo.'
+        exit 1
+    }
+
+    $portasVivas = @($PORTAS_POSSIVEIS | Where-Object { NoAr $_ })
+    if ($portasVivas.Count -gt 1) {
+        Erro "ainda ha $($portasVivas.Count) programas no ar: $($portasVivas -join ', ')"
+        Nota 'Reinicie este servidor e rode o APLICAR-REGRAS.bat de novo.'
+        exit 1
+    }
+    $PortaDuplicati = 8200
+    Ok 'agora ha so um programa rodando, na porta 8200'
+}
+
 # Se a porta normal responde, e nela que se fala. Senao, na que houver.
 if ($portasVivas -notcontains $PortaDuplicati) {
     $PortaDuplicati = $portasVivas[0]
     Aviso "o programa esta na porta $PortaDuplicati, e nao na 8200."
-}
-
-if ($portasVivas.Count -gt 1) {
-    Write-Host ''
-    Erro "HA $($portasVivas.Count) PROGRAMAS RODANDO NESTE SERVIDOR."
-    Nota  "portas respondendo: $($portasVivas -join ', ')"
-    Nota  'Gravar as regras em um deles nao conserta o outro, e os dois fazem'
-    Nota  'o mesmo backup ao mesmo tempo - que e um problema maior que as regras.'
-    Nota  'Reinicie este servidor primeiro. Depois rode o DIAGNOSTICO.bat e'
-    Nota  'confira que sobrou so a 8200. So entao rode este script.'
-    exit 1
 }
 
 $base = "http://127.0.0.1:$PortaDuplicati"
@@ -517,5 +643,9 @@ Write-Host '    CARTORIO CONFIGURADO' -ForegroundColor Green
 Write-Host '  ============================================================' -ForegroundColor Green
 Write-Host ''
 Nota 'O proximo backup ja roda com estas regras.'
-Nota 'Dispare um agora pela tela para conferir: http://localhost:8200'
+Write-Host ''
+Write-Host '    PARA CONFERIR QUE OS AVISOS SUMIRAM' -ForegroundColor Cyan
+Nota "  1. dispare um backup pela tela: http://localhost:$PortaDuplicati"
+Nota '  2. quando terminar, rode o RESUMIR-AVISOS.bat desta pasta'
+Nota '  3. os UnsupportedOption e os PermissionDenied tem que ter sumido'
 Write-Host ''
