@@ -154,6 +154,118 @@ function TrechoUtil([string]$linha) {
     return $t.Trim()
 }
 
+<#
+    OS TIPOS QUE SIGNIFICAM "O ARQUIVO FICOU DE FORA".
+
+    No codigo do Duplicati, LogExceptionHelper.LogCommonWarning escreve:
+
+        "Excluding path due to permission denied: {0}"
+        "Excluding path due to file locked: {0}"
+        "Excluding path due to path not found: {0}"
+        "Excluding path due to path too long: {0}"
+
+    Excluding. O caminho NAO entra no backup. E o resultado da execucao fica
+    Warning, nao Error - ou seja, o backup termina verde com o dado faltando.
+
+    Por isso nenhum destes e "so um aviso". O que decide se importa nao e o
+    tipo: e o CAMINHO.
+#>
+$TIPOS_QUE_EXCLUEM = @(
+    'PermissionDenied', 'FileLocked', 'PathNotFound', 'PathTooLong',
+    'PathProcessingFailed', 'FileProcessingFailed', 'FileAccessError'
+)
+
+<#
+    Tira o caminho de dentro da mensagem.
+
+    Sem regex de proposito. A expressao que faz isso precisa de barras
+    invertidas escapadas, e barra invertida escapada e a coisa mais facil de
+    perder num arquivo que passa por editor, heredoc ou copiar-e-colar - foi
+    o que aconteceu aqui: uma barra sumiu, a expressao continuou casando e
+    devolvendo VAZIO, e o script dizia "nenhum arquivo ficou de fora" com
+    arquivos ficando de fora. Um defeito silencioso e do lado errado.
+
+    Com metodo de texto nao ha o que escapar, e o que o codigo faz e o que
+    esta escrito.
+
+    Formatos que aparecem:
+      ...permission denied: C:\Windows\CSC\ UnauthorizedAccessException: ...
+      ...file locked: Z:\DADOS\base.fdb
+      ...Failed to process path: C:\pagefile.sys => The process cannot access
+#>
+function CaminhoDoAviso([string]$linha) {
+    $t = TrechoUtil $linha
+    if (-not $t) { return $null }
+
+    # Onde comeca o caminho: "X:\" (letra, dois pontos, barra) ou "\servidor"
+    $inicio = -1
+    for ($i = 1; $i -lt $t.Length - 1; $i++) {
+        if ($t[$i] -eq ':' -and $t[$i + 1] -eq '\' -and [char]::IsLetter($t[$i - 1])) {
+            $inicio = $i - 1
+            break
+        }
+    }
+    if ($inicio -lt 0) {
+        $u = $t.IndexOf('\')
+        if ($u -ge 0) { $inicio = $u } else { return $null }
+    }
+
+    $c = $t.Substring($inicio)
+
+    # Corta o motivo que vem depois do caminho.
+    $seta = $c.IndexOf(' => ')
+    if ($seta -gt 0) { $c = $c.Substring(0, $seta) }
+
+    # "C:\x\ UnauthorizedAccessException: Access to the path is denied."
+    #
+    # O nome da excecao vem depois do caminho, e atras dele vem a frase
+    # inteira. Cortar so a ULTIMA palavra nao resolve: a ultima palavra e
+    # "denied.". Entao corta na PRIMEIRA palavra que contenha "Exception" -
+    # dali para a frente nada mais e caminho.
+    $partes = $c.Split(' ')
+    for ($i = 1; $i -lt $partes.Length; $i++) {
+        if ($partes[$i].Contains('Exception')) {
+            $partes = $partes[0..($i - 1)]
+            break
+        }
+    }
+    $c = ($partes -join ' ')
+
+    $c = $c.TrimEnd(':', ' ')
+    if ($c.Length -lt 3) { return $null }
+    return $c
+}
+
+<#
+    O caminho e do Windows, ou e dado do cartorio?
+
+    Esta e a unica pergunta que separa ruido de problema, e por isso ela e
+    explicita aqui em vez de ficar no julgamento de quem le o log.
+
+    Do Windows: C:\Windows, os arquivos de memoria virtual, a lixeira, a
+    pasta de restauracao do sistema. Nada disso se restaura de um backup de
+    arquivos - numa reinstalacao o Windows e instalado do zero.
+
+    Todo o resto e dado, ate prova em contrario. A pasta do sistema do
+    cartorio dentro de Program Files conta como dado: varios sistemas
+    guardam o banco de dados ali.
+#>
+function EhDoSistema([string]$caminho) {
+    if (-not $caminho) { return $false }
+    $c = $caminho.ToUpperInvariant()
+    foreach ($p in @(
+        ':\WINDOWS\', ':\WINDOWS"',
+        'PAGEFILE.SYS', 'HIBERFIL.SYS', 'SWAPFILE.SYS',
+        '\$RECYCLE.BIN', '\RECYCLER\',
+        '\SYSTEM VOLUME INFORMATION',
+        '\MSOCACHE\', '\$WINDOWS.~'
+    )) {
+        if ($c.Contains($p)) { return $true }
+    }
+    if ($c -match '^[A-Z]:\WINDOWS$') { return $true }
+    return $false
+}
+
 
 # ==============================================================================
 
@@ -299,6 +411,8 @@ foreach ($item in $lista) {
 
     # --- agrupa -------------------------------------------------------------
     $tipos = @{}
+    $forasDeCasa = @{}   # caminhos excluidos que NAO sao do Windows
+
     foreach ($ex in $execucoes) {
         foreach ($grupo in @(
             [PSCustomObject]@{ Nome = 'ERRO';  Linhas = $ex.Errors   },
@@ -319,6 +433,18 @@ foreach ($item in $lista) {
                     }
                 }
                 $tipos[$chave].Vezes++
+
+                # Se este aviso significa "arquivo ficou de fora", guarda o
+                # caminho - separando o que e do Windows do que nao e.
+                if ($TIPOS_QUE_EXCLUEM -contains $tipo) {
+                    $caminho = CaminhoDoAviso $texto
+                    if ($caminho -and -not (EhDoSistema $caminho)) {
+                        if (-not $forasDeCasa.ContainsKey($caminho)) {
+                            $forasDeCasa[$caminho] = [PSCustomObject]@{ Tipo = $tipo; Vezes = 0 }
+                        }
+                        $forasDeCasa[$caminho].Vezes++
+                    }
+                }
             }
         }
     }
@@ -343,6 +469,39 @@ foreach ($item in $lista) {
         Write-Host "           $ex" -ForegroundColor DarkGray
     }
 
+    <#
+        A parte que decide se o backup esta bom ou nao.
+
+        Contagem por tipo diz o volume de ruido. Nao diz o que interessa: se
+        algum ARQUIVO DO CARTORIO ficou de fora. E o mesmo aviso nos dois
+        casos - o Duplicati escreve "Excluding path due to permission denied"
+        tanto para um .etl do Windows quanto para a pasta do banco de dados
+        do sistema do cartorio.
+
+        Por isso o que aparece aqui e o CAMINHO, e so os que nao sao do
+        Windows. Tudo que estiver nesta lista e dado que o backup NAO tem.
+    #>
+    if ($forasDeCasa.Count -gt 0) {
+        Write-Host ""
+        Write-Host "    ARQUIVOS QUE NAO ENTRARAM NO BACKUP" -ForegroundColor Red
+        Write-Host "    (fora do Windows - estes precisam ser olhados)" -ForegroundColor Red
+        Write-Host ""
+        $lista = @($forasDeCasa.GetEnumerator() | Sort-Object { -$_.Value.Vezes })
+        foreach ($item in ($lista | Select-Object -First 25)) {
+            Write-Host ("    {0,5}x  " -f $item.Value.Vezes) -ForegroundColor Red -NoNewline
+            Write-Host $item.Value.Tipo -ForegroundColor White -NoNewline
+            Write-Host "  $($item.Key)" -ForegroundColor Gray
+        }
+        if ($lista.Count -gt 25) {
+            Nota "... e mais $($lista.Count - 25) caminhos."
+        }
+    } else {
+        $temExclusao = @($ordenado | Where-Object { $TIPOS_QUE_EXCLUEM -contains $_.Tipo })
+        if ($temExclusao.Count -gt 0) {
+            Write-Host ""
+            Ok 'nenhum arquivo de fora do Windows ficou de fora do backup'
+        }
+    }
     # --- o que fazer --------------------------------------------------------
     $textoTudo = ($ordenado | ForEach-Object { $_.Tipo + ' ' + $_.Exemplo }) -join "`n"
 
