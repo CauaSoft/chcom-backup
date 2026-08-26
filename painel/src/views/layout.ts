@@ -260,6 +260,70 @@ code, .mono {
   header.topo .interno { padding: 14px; }
   h1 { font-size: 20px; }
 }
+
+/* ---- CH.Com Cofre -------------------------------------------------------- */
+
+.subtitulo { color: var(--texto3); margin: -10px 0 26px; font-size: 14px; }
+
+/* Texto de apoio acima de uma tabela: explica o que a coluna significa
+   ANTES de a pessoa interpretar errado, e não num rodapé que ninguém lê. */
+.ajuda {
+  color: var(--texto3);
+  font-size: 13.5px;
+  line-height: 1.55;
+  margin: -6px 0 16px;
+  max-width: 76ch;
+}
+.ajuda strong { color: var(--texto2); }
+
+/* O veredito: uma frase que resume a tela. Quem ler só isto e fechar a
+   página já sabe o essencial — e esse é o objetivo, não um efeito colateral. */
+.veredito {
+  display: block;
+  border-radius: 10px;
+  padding: 18px 22px;
+  margin: 0 0 16px;
+  border-left: 4px solid var(--neutro);
+  background: var(--superficie);
+}
+.veredito strong { display: block; font-size: 16px; margin-bottom: 5px; }
+.veredito span   { color: var(--texto2); font-size: 13.5px; line-height: 1.5; }
+
+.veredito.ok    { border-left-color: var(--ok);    background: #10241A; }
+.veredito.ok strong    { color: var(--ok); }
+.veredito.aviso { border-left-color: var(--aviso); background: #2A2113; }
+.veredito.aviso strong { color: var(--aviso); }
+.veredito.erro  { border-left-color: var(--erro);  background: #2A141C; }
+.veredito.erro strong  { color: var(--erro); }
+
+td.tipo     { color: var(--texto2); white-space: nowrap; }
+td.nome     { font-weight: 500; }
+td.maquina  { color: var(--texto3); white-space: nowrap; }
+
+/* A consistência aparece em toda linha, mesmo quando está tudo certo:
+   um item verde crash-consistent não é a mesma coisa que um item verde
+   application-consistent, e esconder isso transforma duas coisas
+   diferentes na mesma luz verde. */
+td.consistencia         { color: var(--texto3); font-size: 13px; }
+td.consistencia.atencao { color: var(--aviso); font-weight: 500; }
+
+/* O link para a outra tela do mesmo cartório. */
+.atalho-cofre {
+  display: inline-block;
+  margin: 0 0 20px;
+  padding: 11px 18px;
+  border: 1px solid var(--borda);
+  border-radius: 8px;
+  background: var(--superficie);
+  color: var(--texto2);
+  font-size: 14px;
+  text-decoration: none;
+}
+.atalho-cofre:hover {
+  border-color: var(--azul);
+  color: var(--texto);
+  text-decoration: none;
+}
 `;
 
 const CSS_NAV = `

@@ -9,6 +9,7 @@ import {
 } from './auth/sessao';
 import { rotaAuth } from './rotas/auth';
 import { rotaRelatorio } from './rotas/relatorio';
+import { rotaCofre } from './rotas/cofre';
 import { rotaCalibracao } from './rotas/calibracao';
 import { rotaPaginas } from './rotas/paginas';
 import { pagina } from './views/layout';
@@ -47,6 +48,7 @@ app.use(express.text({ type: '*/*', limit: config.limiteCorpo }));
  * autenticação diferente, não uma ausência de autenticação.
  */
 app.use(rotaRelatorio);
+app.use(rotaCofre);
 
 app.get('/health', (_req, res) => {
   res.json({ ok: true, ambiente: config.ambiente });

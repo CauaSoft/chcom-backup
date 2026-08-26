@@ -186,3 +186,76 @@ CREATE TABLE IF NOT EXISTS sessoes (
 );
 
 CREATE INDEX IF NOT EXISTS idx_sessoes_expira ON sessoes (expira_em);
+
+
+-- ============================================================================
+-- CH.COM COFRE — a cópia externa para desastre
+--
+-- Duas tabelas próprias, e não as de `relatorios`, por um motivo de fundo: o
+-- Duplicati reporta UMA execução com UM resultado, e o Cofre reporta uma
+-- execução com VÁRIOS itens — cada VM, cada banco, cada disco tem o seu
+-- próprio sucesso ou falha.
+--
+-- Enfiar isso em `relatorios` obrigaria a inventar um "resultado geral" e
+-- perder o detalhe: um host com 3 VMs onde só a VM-ARQUIVOS falhou não é
+-- "backup com erro", é "duas VMs protegidas e uma que precisa de atenção".
+-- Essa diferença é a coisa mais útil que o painel pode mostrar, e ela só
+-- existe se o modelo guardar item por item.
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS cofre_execucoes (
+    id           INTEGER PRIMARY KEY,
+    cliente_id   INTEGER NOT NULL REFERENCES clientes(id),
+
+    -- Um cartório pode ter vários servidores no Cofre: o host Hyper-V, o
+    -- servidor do sistema, e o Cofre instalado DENTRO de cada VM que tenha
+    -- banco. Sem separar por máquina, tudo se empilharia como se fosse um só.
+    maquina      TEXT    NOT NULL,
+
+    recebido_em  TEXT    NOT NULL,
+    comecou_em   TEXT,
+    terminou_em  TEXT,
+
+    -- sucesso | parcial | falhou | nada a fazer
+    resultado    TEXT,
+
+    itens        INTEGER NOT NULL DEFAULT 0,
+    sucessos     INTEGER NOT NULL DEFAULT 0,
+    falhas       INTEGER NOT NULL DEFAULT 0,
+
+    -- Mesma rede de segurança dos relatórios do Duplicati: o corpo inteiro,
+    -- exatamente como chegou. Se amanhã o agente mandar um campo novo, dá
+    -- para reprocessar o histórico sem ter perdido nada.
+    json_bruto   TEXT    NOT NULL,
+    versao       INTEGER NOT NULL DEFAULT 1
+);
+
+CREATE INDEX IF NOT EXISTS idx_cofre_exec_cliente
+    ON cofre_execucoes (cliente_id, recebido_em DESC);
+
+-- Uma linha por VM, banco, disco ou pasta de cada execução.
+CREATE TABLE IF NOT EXISTS cofre_itens (
+    id           INTEGER PRIMARY KEY,
+    execucao_id  INTEGER NOT NULL REFERENCES cofre_execucoes(id) ON DELETE CASCADE,
+
+    -- vm | imagem | firebird | sqlserver | pasta
+    tipo         TEXT    NOT NULL,
+    nome         TEXT    NOT NULL,
+    sucesso      INTEGER NOT NULL DEFAULT 0,
+
+    -- "application-consistent", "CRASH-CONSISTENT", "gbak conferido"...
+    --
+    -- Guardado como texto e mostrado na tela porque é a diferença entre um
+    -- backup com promessa e um backup com torcida. Um item verde
+    -- crash-consistent não é o mesmo que um item verde application-consistent,
+    -- e quem opera precisa ver isso sem abrir nada.
+    consistencia TEXT,
+
+    bytes        INTEGER NOT NULL DEFAULT 0,
+    quando       TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_cofre_itens_exec ON cofre_itens (execucao_id);
+
+-- Responde "há quanto tempo esta VM não sobe?" sem varrer o histórico inteiro.
+CREATE INDEX IF NOT EXISTS idx_cofre_itens_nome ON cofre_itens (tipo, nome, quando DESC);

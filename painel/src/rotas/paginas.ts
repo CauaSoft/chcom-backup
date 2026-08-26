@@ -15,11 +15,13 @@ import {
   ultimasRecusas,
   ultimosRelatorios,
 } from '../db/repo';
+import { ultimoSucessoPorItem, execucoesDoCofre } from '../db/repo';
 import { conferirOrigem } from '../auth/sessao';
 import { lerFormulario } from './auth';
 import { extrairCampos } from '../duplicati/parse';
 import { telaPainel } from '../views/painel';
 import { telaCartorio } from '../views/cartorio';
+import { telaCofre, type ExecucaoResumo } from '../views/cofre';
 import { telaCartorios } from '../views/cartorios';
 import { telaCalibracao, type ItemCalibracao } from '../views/calibracao';
 import { pagina } from '../views/layout';
@@ -62,6 +64,47 @@ function erroSimples(titulo: string, texto: string, usuario?: string): string {
 
 // ---------------------------------------------------------------------------
 // PAINEL
+/**
+ * GET /cofre/:id
+ *
+ * A cópia externa daquele cartório. Separada da tela do backup por um motivo
+ * de fundo: são dois produtos diferentes, com perguntas diferentes.
+ *
+ * A tela do backup responde "o último backup deu certo?". Esta responde "há
+ * quanto tempo cada coisa não sobe?" — e a segunda pergunta é a que encontra
+ * o buraco que a primeira não vê: uma execução recente bem-sucedida pode não
+ * ter tocado numa VM parada há três meses.
+ */
+rotaPaginas.get('/cofre/:id', (req, res) => {
+  const id = idDaUrl(req.params.id);
+
+  if (!Number.isInteger(id) || id < 1) {
+    return res
+      .status(400)
+      .type('html')
+      .send(erroSimples('Endereço inválido', 'O número do cartório não é válido.', req.sessao?.usuario));
+  }
+
+  const cliente = buscarClientePorId(id);
+  if (!cliente) {
+    return res
+      .status(404)
+      .type('html')
+      .send(erroSimples('Cartório não encontrado', `Não existe cartório com o número ${id}.`, req.sessao?.usuario));
+  }
+
+  const corpo = telaCofre({
+    clienteNome: cliente.nome,
+    clienteId: cliente.id,
+    itens: ultimoSucessoPorItem(cliente.id),
+    execucoes: execucoesDoCofre(cliente.id, 30) as ExecucaoResumo[],
+  });
+
+  return res
+    .type('html')
+    .send(pagina({ titulo: `Cofre — ${cliente.nome}`, corpo, usuario: req.sessao?.usuario }));
+});
+
 // ---------------------------------------------------------------------------
 
 rotaPaginas.get('/', (req, res) => {

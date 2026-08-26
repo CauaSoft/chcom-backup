@@ -578,3 +578,158 @@ export function ultimasRecusas(limite = 20) {
     )
     .all(limite) as Array<Record<string, unknown>>;
 }
+
+// ============================================================================
+//  CH.Com Cofre — a cópia externa para desastre
+// ============================================================================
+
+/** Um item protegido dentro de uma execução do Cofre. */
+export interface ItemDoCofre {
+  tipo: string;
+  nome: string;
+  sucesso: boolean;
+  consistencia: string | null;
+  bytes: number;
+  quando: string | null;
+}
+
+export interface ExecucaoDoCofre {
+  maquina: string;
+  comecouEm: string | null;
+  terminouEm: string | null;
+  resultado: string | null;
+  itens: number;
+  sucessos: number;
+  falhas: number;
+  detalhes: ItemDoCofre[];
+}
+
+/**
+ * Grava uma execução do Cofre com todos os seus itens.
+ *
+ * Em transação, e isso não é detalhe: uma execução gravada sem os itens
+ * apareceria no painel como "sucesso, 3 itens" com a lista vazia — pior que
+ * não aparecer, porque parece completa. Ou grava tudo, ou nada.
+ */
+export function salvarExecucaoDoCofre(
+  clienteId: number,
+  execucao: ExecucaoDoCofre,
+  jsonBruto: string,
+  versao: number,
+  recebidoEm?: string,
+): number {
+  const gravar = db().transaction(() => {
+    const info = db()
+      .prepare(
+        `INSERT INTO cofre_execucoes (
+           cliente_id, maquina, recebido_em, comecou_em, terminou_em,
+           resultado, itens, sucessos, falhas, json_bruto, versao
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        clienteId,
+        execucao.maquina,
+        recebidoEm ?? agoraISO(),
+        execucao.comecouEm,
+        execucao.terminouEm,
+        execucao.resultado,
+        execucao.itens,
+        execucao.sucessos,
+        execucao.falhas,
+        jsonBruto,
+        versao,
+      );
+
+    const execucaoId = Number(info.lastInsertRowid);
+
+    const inserirItem = db().prepare(
+      `INSERT INTO cofre_itens
+         (execucao_id, tipo, nome, sucesso, consistencia, bytes, quando)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    );
+    for (const item of execucao.detalhes) {
+      inserirItem.run(
+        execucaoId,
+        item.tipo,
+        item.nome,
+        item.sucesso ? 1 : 0,
+        item.consistencia,
+        item.bytes,
+        item.quando,
+      );
+    }
+
+    return execucaoId;
+  });
+
+  return gravar();
+}
+
+/**
+ * A última vez que CADA item subiu com sucesso, por cliente.
+ *
+ * É o que responde a pergunta que importa no painel: não "o último backup deu
+ * certo?", e sim "há quanto tempo esta VM não sobe?". Uma execução recente
+ * bem-sucedida pode não ter tocado numa VM que está parada há três meses —
+ * e é exatamente esse tipo de buraco que passa despercebido.
+ *
+ * A função de janela numera as linhas de cada item pela data, do mais recente
+ * para o mais antigo, e ficamos só com a primeira de cada.
+ */
+export function ultimoSucessoPorItem(clienteId: number): Array<{
+  tipo: string;
+  nome: string;
+  maquina: string;
+  consistencia: string | null;
+  bytes: number;
+  quando: string | null;
+}> {
+  return db()
+    .prepare(
+      `SELECT tipo, nome, maquina, consistencia, bytes, quando FROM (
+         SELECT i.tipo, i.nome, e.maquina, i.consistencia, i.bytes, i.quando,
+                ROW_NUMBER() OVER (
+                  PARTITION BY e.maquina, i.tipo, i.nome
+                  ORDER BY i.quando DESC
+                ) AS posicao
+           FROM cofre_itens i
+           JOIN cofre_execucoes e ON e.id = i.execucao_id
+          WHERE e.cliente_id = ? AND i.sucesso = 1
+       ) WHERE posicao = 1
+       ORDER BY maquina, tipo, nome`,
+    )
+    .all(clienteId) as Array<{
+    tipo: string;
+    nome: string;
+    maquina: string;
+    consistencia: string | null;
+    bytes: number;
+    quando: string | null;
+  }>;
+}
+
+/** As execuções mais recentes do Cofre de um cliente. */
+export function execucoesDoCofre(clienteId: number, limite = 30) {
+  return db()
+    .prepare(
+      `SELECT id, maquina, recebido_em, comecou_em, terminou_em,
+              resultado, itens, sucessos, falhas
+         FROM cofre_execucoes
+        WHERE cliente_id = ?
+        ORDER BY recebido_em DESC
+        LIMIT ?`,
+    )
+    .all(clienteId, limite);
+}
+
+/** Os itens de uma execução. */
+export function itensDaExecucao(execucaoId: number) {
+  return db()
+    .prepare(
+      `SELECT tipo, nome, sucesso, consistencia, bytes, quando
+         FROM cofre_itens
+        WHERE execucao_id = ?
+        ORDER BY sucesso ASC, tipo, nome`,
+    )
+    .all(execucaoId);
+}

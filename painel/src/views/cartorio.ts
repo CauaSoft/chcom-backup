@@ -104,6 +104,15 @@ export function telaCartorio(
     ${cliente.ativo ? '' : ' · <span style="color:var(--aviso)">desativado</span>'}
   </p>
 
+  <!--
+    O link para o Cofre. Fica no topo, e não num menu, porque são duas
+    perguntas diferentes sobre o mesmo cartório: aqui, "o backup rodou?";
+    lá, "há quanto tempo cada coisa não sobe para fora do prédio?".
+  -->
+  <a class="atalho-cofre" href="/cofre/${cliente.id}">
+    Cofre — cópia externa para desastre &rarr;
+  </a>
+
   <div class="cartoes">
     <div class="cartao">
       <div class="rotulo">Situação</div>
