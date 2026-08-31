@@ -685,9 +685,33 @@ function Passo6_Teste {
 
 function Passo7_Pronto {
     $sp = New-Object Windows.Controls.StackPanel
+    $ag = $W.Agendamento
+    $ehGerente = ((ModoDoPrograma $raiz) -eq 'gerente')
 
-    $sp.Children.Add((FaixaVeredito 'ok' 'Tudo pronto' `
-        'O Cofre esta configurado e vai rodar sozinho a partir de agora.')) | Out-Null
+    <#
+        O veredito sai do que ACONTECEU, e nao do que se pretendia.
+
+        A tela dizia "vai rodar sozinho a partir de agora" antes de o
+        agendamento ter sido tentado. Se ele falhasse - sem permissao, politica
+        de dominio, servico do Agendador parado - a ultima coisa que a pessoa
+        via era a promessa, e o backup nunca rodava.
+    #>
+    if ($ehGerente) {
+        $sp.Children.Add((FaixaVeredito 'ok' 'Tudo pronto' `
+            'Este computador ja le o Cofre. Abra "Todos os cartorios" para ver o parque.')) | Out-Null
+    } elseif ($ag -and $ag.Agendou) {
+        $sp.Children.Add((FaixaVeredito 'ok' 'Tudo pronto' `
+            'O Cofre esta configurado e agendado. A partir de hoje ele roda sozinho, com o programa fechado.')) | Out-Null
+    } else {
+        $motivo = if ($ag -and $ag.Erro) { $ag.Erro } else { 'motivo desconhecido' }
+        $sp.Children.Add((FaixaVeredito 'erro' 'Configurado, mas NAO vai rodar sozinho' (
+            'O destino esta certo e o teste passou - mas nao consegui registrar as tarefas no ' +
+            'Agendador do Windows: ' + $motivo))) | Out-Null
+        $sp.Children.Add((BlocoAviso 'perigo' (
+            'Enquanto isso nao for resolvido, o backup so acontece se alguem abrir o programa ' +
+            'e clicar em "Executar agora". Rode o programa como Administrador e configure de ' +
+            'novo, ou registre as tarefas a mao no Agendador de Tarefas.'))) | Out-Null
+    }
 
     $sp.Children.Add((Secao 'O que foi configurado' '')) | Out-Null
     $c = NovoCartao
@@ -979,7 +1003,18 @@ function ExecutarTeste {
     Renderizar
 }
 
-function Concluir {
+<#
+    Grava e agenda ANTES de mostrar a tela final.
+
+    A ordem estava invertida: o passo 7 dizia "tudo pronto, vai rodar sozinho"
+    e so DEPOIS, no clique em Concluir, o agendamento acontecia. Se ele
+    falhasse, ninguem ficava sabendo - a ultima coisa que a pessoa via era a
+    promessa.
+
+    Agora o trabalho acontece na passagem para o ultimo passo, e o ultimo
+    passo RELATA. Prometer depois de fazer e diferente de prometer antes.
+#>
+function GravarTudo {
     $config = NovaConfiguracao
     $config.Cartorio = $W.Cartorio
     $config.Bucket = $W.Bucket
@@ -1002,48 +1037,101 @@ function Concluir {
     <#
         O GERENTE NAO AGENDA NADA.
 
-        AgendarTarefas registra o motor para rodar de madrugada. No computador
-        do gerente isso criaria uma tarefa que acorda todo dia para fazer
-        backup de um servidor que nao existe - falhando em silencio, e
-        enchendo o Agendador de Tarefas de erro que ninguem vai investigar.
-
-        Ele so LE o parque, e le quando alguem abre o programa.
+        No computador dele, agendar criaria uma tarefa que acorda todo dia para
+        fazer backup de um servidor que nao existe - falhando em silencio e
+        enchendo o Agendador de erro que ninguem vai investigar. Ele so LE o
+        parque, e le quando alguem abre o programa.
     #>
-    if ((ModoDoPrograma $raiz) -ne 'gerente') { AgendarTarefas }
+    if ((ModoDoPrograma $raiz) -eq 'gerente') {
+        $W.Agendamento = [PSCustomObject]@{ Agendou = $true; Erro = $null; Tarefas = @() }
+    } else {
+        $W.Agendamento = AgendarTarefas
+    }
+}
 
+function Concluir {
     $janela.DialogResult = $true
     $janela.Close()
 }
 
 <#
-    Agenda as duas tarefas.
+    Registra as duas tarefas - e DIZ se nao conseguiu.
 
-    diaria  bancos, 01:30. Sao pequenos e mudam todo dia.
-    mensal  VMs e imagem, sabado 22:00. Sao grandes, e a rodada longa nao pode
-            disputar a madrugada de dia util com o backup local do cartorio.
+    Dois defeitos moravam aqui, e juntos explicavam por que "nao tem nada
+    concreto":
 
-    O motor decide o que esta na hora; a tarefa so o acorda.
+    1. AS DUAS TAREFAS RODAVAM O MESMO COMANDO.
+
+       cofre.ps1, sem argumento nenhum, nas duas. A diaria - descrita como
+       "copia dos bancos" - fazia a rodada COMPLETA: maquinas virtuais e
+       imagem do servidor, toda madrugada. Numa VM de 21 GB por um link de 10
+       Mbps sao 2,3 horas por noite em vez de por mes, e a conta da AWS na
+       mesma proporcao. O motor sempre aceitou -SomenteBancos e -Tudo; era so
+       passar.
+
+    2. O ERRO ERA ENGOLIDO.
+
+       catch { } vazio. Sem permissao, com politica de dominio bloqueando, com
+       o servico do Agendador parado - o assistente terminava dizendo
+       "configuracao concluida" e NADA ficava agendado. O backup nunca rodaria,
+       e ninguem descobriria ate precisar restaurar.
+
+       Agora a funcao devolve o que aconteceu, e o passo final mostra.
+
+    E CONFERE DEPOIS DE REGISTRAR
+
+    Register-ScheduledTask pode voltar sem erro e a tarefa nao existir - por
+    politica, por antivirus. Perguntar ao Agendador se ela esta la e barato e
+    e a diferenca entre "mandei registrar" e "esta registrada".
 #>
 function AgendarTarefas {
+    $r = [PSCustomObject]@{ Agendou = $false; Erro = $null; Tarefas = @() }
     try {
-        $acao = New-ScheduledTaskAction -Execute 'powershell.exe' `
-            -Argument ('-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "' +
-                       (CaminhoDe $raiz 'cofre.ps1') + '"')
+        $base = '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "' +
+                (CaminhoDe $raiz 'cofre.ps1') + '"'
+
+        <#
+            DisallowStartIfOnBatteries vem LIGADO por padrao.
+
+            Num servidor de cartorio ligado na tomada isso nunca aparece - ate
+            o dia em que o backup e um mini-PC no nobreak, ou o nobreak entra
+            em bateria as 3 da manha. A tarefa simplesmente nao roda, e nao
+            reclama.
+        #>
         $opcoes = New-ScheduledTaskSettingsSet -StartWhenAvailable -DontStopOnIdleEnd `
-            -ExecutionTimeLimit (New-TimeSpan -Hours 20) -MultipleInstances IgnoreNew
+            -ExecutionTimeLimit (New-TimeSpan -Hours 20) -MultipleInstances IgnoreNew `
+            -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
         $comoSistema = New-ScheduledTaskPrincipal -UserId 'SYSTEM' `
             -LogonType ServiceAccount -RunLevel Highest
 
-        Register-ScheduledTask -TaskName 'CH.Com Cofre - diario' -Action $acao `
-            -Trigger (New-ScheduledTaskTrigger -Daily -At '01:30') `
-            -Settings $opcoes -Principal $comoSistema `
-            -Description 'Copia externa dos bancos de dados para a AWS' -Force | Out-Null
+        $paraRegistrar = @(
+            @{ Nome = 'CH.Com Cofre - diario'
+               Arg  = "$base -SomenteBancos"
+               Gat  = (New-ScheduledTaskTrigger -Daily -At '01:30')
+               Desc = 'Copia externa dos bancos de dados para a AWS' }
+            @{ Nome = 'CH.Com Cofre - mensal'
+               Arg  = "$base -Tudo"
+               Gat  = (New-ScheduledTaskTrigger -Weekly -WeeksInterval 4 -DaysOfWeek Saturday -At '22:00')
+               Desc = 'Copia externa completa: maquinas virtuais e imagem do servidor' }
+        )
 
-        Register-ScheduledTask -TaskName 'CH.Com Cofre - mensal' -Action $acao `
-            -Trigger (New-ScheduledTaskTrigger -Weekly -WeeksInterval 4 -DaysOfWeek Saturday -At '22:00') `
-            -Settings $opcoes -Principal $comoSistema `
-            -Description 'Copia externa das maquinas virtuais e imagem do servidor' -Force | Out-Null
-    } catch { }
+        foreach ($t in $paraRegistrar) {
+            $acao = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument $t.Arg
+            Register-ScheduledTask -TaskName $t.Nome -Action $acao -Trigger $t.Gat `
+                -Settings $opcoes -Principal $comoSistema -Description $t.Desc -Force | Out-Null
+        }
+
+        foreach ($t in $paraRegistrar) {
+            $existe = Get-ScheduledTask -TaskName $t.Nome -ErrorAction SilentlyContinue
+            if (-not $existe) { throw "a tarefa '$($t.Nome)' nao ficou registrada no Agendador." }
+            $r.Tarefas += $t.Nome
+        }
+        $r.Agendou = $true
+
+    } catch {
+        $r.Erro = $_.Exception.Message
+    }
+    return $r
 }
 
 # --- botoes -------------------------------------------------------------------
@@ -1056,6 +1144,10 @@ $btnAvancar.Add_Click({
 
     $problema = ProblemaDoPasso
     if ($problema) { Avisar $problema; return }
+
+    # Entrar no ultimo passo e o momento de gravar e agendar - assim a tela
+    # final relata o que aconteceu, em vez de prometer o que ainda nao houve.
+    if ((NomeDoPasso ($W.Passo + 1)) -eq 'Pronto') { GravarTudo }
 
     $W.Passo++
     Renderizar
