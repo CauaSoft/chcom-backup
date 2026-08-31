@@ -35,7 +35,11 @@ function LerParque {
     param(
         [Parameter(Mandatory)] [string]$Rclone,
         [Parameter(Mandatory)] [string]$Config,
-        [Parameter(Mandatory)] [string]$Remoto,
+        # Le o S3 DIRETO, e nao o remote cifrado: o estado de cada cartorio e
+        # publicado em claro justamente para o gerente nao precisar da chave
+        # de ninguem. Ver PublicarEstado.
+        [string]$RemotoSemCifra = 'cofre-s3',
+        [Parameter(Mandatory)] [string]$Bucket,
         [int]$SegundosLimite = 120
     )
 
@@ -62,7 +66,7 @@ function LerParque {
             de todos os cartorios so para descobrir que nao ha nada la.
         #>
         $argumentos = @(
-            'copy', "${Remoto}:", $temp
+            'copy', "${RemotoSemCifra}:$Bucket", $temp
             '--config', $Config
             '--include', '*/*/_estado/estado.json'
             '--max-depth', '4'

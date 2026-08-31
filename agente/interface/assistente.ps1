@@ -604,21 +604,52 @@ function Passo5_Chave {
 #>
 function Passo6_Teste {
     $sp = New-Object Windows.Controls.StackPanel
+    $ehGerente = ((ModoDoPrograma $raiz) -eq 'gerente')
 
     if (-not $W.Testou) {
-        $sp.Children.Add((FaixaVeredito 'info' 'Vamos testar a conexao' `
-            'O Cofre sobe 8 MB para o bucket, confere que chegou, e apaga em seguida.')) | Out-Null
-        $sp.Children.Add((NovoTexto 'Isso leva de alguns segundos a alguns minutos, conforme o link.' `
-            13 $Cores.Texto2)) | Out-Null
+        if ($ehGerente) {
+            $sp.Children.Add((FaixaVeredito 'info' 'Vamos testar a leitura do Cofre' `
+                'O programa lista o bucket e conta quantos cartorios ja publicaram estado.')) | Out-Null
+            $sp.Children.Add((NovoTexto (
+                'Nada e escrito. A credencial do gerente e so de leitura, e e assim que deve ser: ' +
+                'a maquina que enxerga os 38 cartorios nao precisa poder escrever em nenhum deles.') `
+                13 $Cores.Texto2)) | Out-Null
+        } else {
+            $sp.Children.Add((FaixaVeredito 'info' 'Vamos testar a conexao' `
+                'O Cofre sobe uma sonda de 8 MB para o bucket e confere que ela chegou inteira.')) | Out-Null
+            $sp.Children.Add((NovoTexto 'Isso leva de alguns segundos a alguns minutos, conforme o link.' `
+                13 $Cores.Texto2)) | Out-Null
+        }
         return $sp
     }
 
     if ($W.Erro) {
         $sp.Children.Add((FaixaVeredito 'erro' 'O teste nao passou' $W.Erro)) | Out-Null
-        $sp.Children.Add((BlocoAviso 'aviso' (
+        $dica = if ($ehGerente) {
+            'Confira a Access Key, a Secret, o nome do bucket e a regiao. O usuario IAM do ' +
+            'gerente precisa de s3:ListBucket e s3:GetObject no bucket inteiro. Nao precisa ' +
+            'de s3:PutObject: o computador do gerente nunca escreve no Cofre de ninguem.'
+        } else {
             'Confira a Access Key, a Secret, o nome do bucket e a regiao. O usuario IAM ' +
             'precisa de s3:PutObject, s3:GetObject, s3:ListBucket e s3:RestoreObject. ' +
-            'Nao precisa de s3:DeleteObject: o agente nunca apaga nada na nuvem.'))) | Out-Null
+            'Nao precisa de s3:DeleteObject: o agente nunca apaga nada na nuvem.'
+        }
+        $sp.Children.Add((BlocoAviso 'aviso' $dica)) | Out-Null
+        return $sp
+    }
+
+    if ($ehGerente) {
+        $quantos = [int]$W.Cartorios
+        $frase = if ($quantos -eq 0) {
+            'O bucket respondeu, mas ainda nao ha cartorio nenhum publicando estado. ' +
+            'Isso e o esperado antes do primeiro backup - a tela "Todos os cartorios" ' +
+            'vai se preencher sozinha conforme os cartorios forem instalados.'
+        } elseif ($quantos -eq 1) {
+            '1 cartorio ja publica estado neste bucket.'
+        } else {
+            "$quantos cartorios ja publicam estado neste bucket."
+        }
+        $sp.Children.Add((FaixaVeredito 'ok' 'Leitura do Cofre funcionando' $frase)) | Out-Null
         return $sp
     }
 
@@ -685,46 +716,80 @@ function Passo7_Pronto {
 # ==============================================================================
 #  Navegacao
 # ==============================================================================
+<#
+    O GERENTE NAO E UM CARTORIO, E NAO DEVE RESPONDER COMO UM.
+
+    O assistente tinha sete passos fixos, todos escritos para quem esta
+    instalando NUM CARTORIO: escolha os discos, escolha as pastas, guarde a
+    chave, agende a madrugada.
+
+    No computador do gerente isso e pior que inutil - e errado:
+
+    - Ele nao copia nada. Nao tem disco nem pasta para escolher.
+    - Ele nao gera chave. A chave dele nao decifra cartorio nenhum, entao
+      mandar guardar essa chave "senao o backup morre" seria mentira.
+    - A credencial dele e SO DE LEITURA. O teste que sobe 8 MB falharia por
+      falta de permissao - num acesso perfeitamente correto.
+
+    Entao cada modo tem a sua lista de passos, e a numeracao ("3 de 5") sai
+    dela, nao de um total fixo.
+#>
+$PASSOS_CARTORIO = @('Bemvindo','Destino','Origem','Credenciais','Chave','Teste','Pronto')
+$PASSOS_GERENTE  = @('Bemvindo','Destino','Credenciais','Teste','Pronto')
+
+$W.Passos = if ((ModoDoPrograma $raiz) -eq 'gerente') { $PASSOS_GERENTE } else { $PASSOS_CARTORIO }
+$W.Total = $W.Passos.Count
+
+function NomeDoPasso([int]$n) {
+    if ($n -lt 1 -or $n -gt $W.Passos.Count) { return '' }
+    return $W.Passos[$n - 1]
+}
+
 $titulos = @{
-    1 = @{ T = 'Bem-vindo';             S = 'O que o Cofre encontrou neste servidor' }
-    2 = @{ T = 'Destino na nuvem';      S = 'Onde as copias vao ficar' }
-    3 = @{ T = 'Origem';               S = 'O que vai para o Cofre, e quanto tempo leva' }
-    4 = @{ T = 'Credenciais da AWS';    S = 'Acesso ao bucket' }
-    5 = @{ T = 'Chave de criptografia'; S = 'O passo mais importante de todos' }
-    6 = @{ T = 'Teste';                 S = 'Conferindo que funciona de verdade' }
-    7 = @{ T = 'Pronto';                S = 'Configuracao concluida' }
+    'Bemvindo'    = @{ T = 'Bem-vindo';             S = 'O que o Cofre encontrou neste servidor' }
+    'Destino'     = @{ T = 'Destino na nuvem';      S = 'Onde as copias vao ficar' }
+    'Origem'      = @{ T = 'Origem';                S = 'O que vai para o Cofre, e quanto tempo leva' }
+    'Credenciais' = @{ T = 'Credenciais da AWS';    S = 'Acesso ao bucket' }
+    'Chave'       = @{ T = 'Chave de criptografia'; S = 'O passo mais importante de todos' }
+    'Teste'       = @{ T = 'Teste';                 S = 'Conferindo que funciona de verdade' }
+    'Pronto'      = @{ T = 'Pronto';                S = 'Configuracao concluida' }
 }
 
 function Renderizar {
     $area.Children.Clear()
-    $janela.FindName('txtEtapa').Text = $titulos[$W.Passo].T
-    $janela.FindName('txtSubEtapa').Text = $titulos[$W.Passo].S
+    $passo = NomeDoPasso $W.Passo
+    $ultimo = ($W.Passo -eq $W.Total)
+
+    $janela.FindName('txtEtapa').Text = $titulos[$passo].T
+    $janela.FindName('txtSubEtapa').Text = $titulos[$passo].S
     $janela.FindName('txtPasso').Text = "$($W.Passo) de $($W.Total)"
+    $janela.FindName('barra').Maximum = $W.Total
     $janela.FindName('barra').Value = $W.Passo
 
-    $btnVoltar.Visibility = if ($W.Passo -eq 1 -or $W.Passo -eq 7) { 'Hidden' } else { 'Visible' }
-    $btnCancelar.Visibility = if ($W.Passo -eq 7) { 'Hidden' } else { 'Visible' }
-    $btnAvancar.Content = switch ($W.Passo) {
-        5 { 'Avancar' }
-        6 { if ($W.Testou -and -not $W.Erro) { 'Avancar' } else { 'Testar agora' } }
-        7 { 'Concluir' }
-        default { 'Avancar' }
+    # Comparado pelo NOME do passo, e nao pelo numero: no modo gerente o
+    # "Teste" e o passo 4, e o numero 5 nem existe.
+    $btnVoltar.Visibility = if ($W.Passo -eq 1 -or $ultimo) { 'Hidden' } else { 'Visible' }
+    $btnCancelar.Visibility = if ($ultimo) { 'Hidden' } else { 'Visible' }
+    $btnAvancar.Content = switch ($passo) {
+        'Teste'  { if ($W.Testou -and -not $W.Erro) { 'Avancar' } else { 'Testar agora' } }
+        'Pronto' { 'Concluir' }
+        default  { 'Avancar' }
     }
     $btnAvancar.IsEnabled = $true
 
-    $elemento = switch ($W.Passo) {
-        1 { Passo1_Bemvindo }
-        2 { Passo2_Destino }
-        3 { Passo3_Origem }
-        4 { Passo4_Credenciais }
-        5 { Passo5_Chave }
-        6 { Passo6_Teste }
-        7 { Passo7_Pronto }
+    $elemento = switch ($passo) {
+        'Bemvindo'    { Passo1_Bemvindo }
+        'Destino'     { Passo2_Destino }
+        'Origem'      { Passo3_Origem }
+        'Credenciais' { Passo4_Credenciais }
+        'Chave'       { Passo5_Chave }
+        'Teste'       { Passo6_Teste }
+        'Pronto'      { Passo7_Pronto }
     }
     $area.Children.Add($elemento) | Out-Null
 
     # No passo da chave, Avancar so libera com a caixa marcada.
-    if ($W.Passo -eq 5) { $btnAvancar.IsEnabled = $false }
+    if ((NomeDoPasso $W.Passo) -eq 'Chave') { $btnAvancar.IsEnabled = $false }
 }
 
 <#
@@ -735,8 +800,8 @@ function Renderizar {
     pessoa ja tendo digitado a credencial - retrabalho a toa.
 #>
 function ProblemaDoPasso {
-    switch ($W.Passo) {
-        1 {
+    switch (NomeDoPasso $W.Passo) {
+        'Bemvindo' {
             <#
                 O passo 1 NAO bloqueia, mesmo sem nada detectado.
 
@@ -762,7 +827,7 @@ function ProblemaDoPasso {
                         'Escolha ao menos um disco ou uma pasta acima.')
             }
         }
-        2 {
+        'Destino' {
             $W.Cartorio = ($W.Caixas['cartorio'].Text -replace '[^A-Za-z0-9\-_]', '-').ToLower().Trim('-')
             $W.Bucket = $W.Caixas['bucket'].Text.Trim()
             $W.Regiao = $W.Caixas['regiao'].Text.Trim()
@@ -771,7 +836,7 @@ function ProblemaDoPasso {
             if (-not $W.Regiao)   { return 'Informe a regiao.' }
             if (-not $W.Trabalho) { return 'Nenhum disco local tem espaco para a area de trabalho.' }
         }
-        4 {
+        'Credenciais' {
             $W.ChaveAws = $W.Caixas['chaveAws'].Text.Trim()
             $W.SegredoAws = $W.Caixas['segredoAws'].Password
             if (-not $W.ChaveAws)   { return 'Informe a Access Key ID.' }
@@ -818,6 +883,33 @@ function ExecutarTeste {
         EscreverRcloneConf -Rclone $rclone -Arquivo (CaminhoDe $dados 'rclone.conf') `
             -ChaveAws $W.ChaveAws -SegredoAws $W.SegredoAws -Regiao $W.Regiao `
             -Bucket $W.Bucket -Chave $W.Chave
+
+        <#
+            NO MODO GERENTE, O TESTE E LER - NAO ESCREVER.
+
+            A credencial do gerente e so de leitura, de proposito: a maquina
+            que enxerga os 38 cartorios nao precisa poder escrever em nenhum
+            deles. Subir a sonda de 8 MB falharia por falta de permissao num
+            acesso perfeitamente correto, e mandaria o gerente conceder
+            PutObject "para o teste passar" - abrindo o parque inteiro para a
+            maquina que menos precisa disso.
+
+            Entao aqui o teste e o que ele realmente vai fazer todo dia: listar
+            o bucket.
+        #>
+        if ((ModoDoPrograma $raiz) -eq 'gerente') {
+            $relogio = [Diagnostics.Stopwatch]::StartNew()
+            $exec = RodarRclone -Rclone $rclone -Argumentos @(
+                'lsjson', "cofre-s3:$($W.Bucket)", '--config', (CaminhoDe $dados 'rclone.conf'),
+                '--max-depth', '1')
+            $relogio.Stop()
+            if ($exec.Codigo -ne 0) { throw $exec.Erro }
+            $itens = LerListaDoRclone $exec.Saida
+            $W.Cartorios = @($itens | Where-Object { $_.IsDir }).Count
+            $W.Mbps = 0
+            $W.Testou = $true
+            return
+        }
 
         <#
             A SONDA MEDIA O PIOR CASO POSSIVEL.
@@ -893,8 +985,8 @@ function Concluir {
     $config.Bucket = $W.Bucket
     $config.Regiao = $W.Regiao
     $config.PastaDeTrabalho = $W.Trabalho
-    # As pastas escolhidas a mao. Sem esta linha o passo 3 seria decorativo:
-    # a pessoa escolheria as pastas e o Cofre nunca saberia delas.
+    # As pastas escolhidas a mao. Sem esta linha o passo da origem seria
+    # decorativo: a pessoa escolheria as pastas e o Cofre nunca saberia delas.
     $config.Pastas = @($W.Pastas)
     $config.Discos = @($W.Discos)
     # A velocidade medida contra a AWS fica guardada: e o que permite a tela
@@ -907,7 +999,18 @@ function Concluir {
     $W.ChaveAws = ''
     [GC]::Collect()
 
-    AgendarTarefas
+    <#
+        O GERENTE NAO AGENDA NADA.
+
+        AgendarTarefas registra o motor para rodar de madrugada. No computador
+        do gerente isso criaria uma tarefa que acorda todo dia para fazer
+        backup de um servidor que nao existe - falhando em silencio, e
+        enchendo o Agendador de Tarefas de erro que ninguem vai investigar.
+
+        Ele so LE o parque, e le quando alguem abre o programa.
+    #>
+    if ((ModoDoPrograma $raiz) -ne 'gerente') { AgendarTarefas }
+
     $janela.DialogResult = $true
     $janela.Close()
 }
@@ -945,10 +1048,11 @@ function AgendarTarefas {
 
 # --- botoes -------------------------------------------------------------------
 $btnAvancar.Add_Click({
-    if ($W.Passo -eq 6) {
+    $passo = NomeDoPasso $W.Passo
+    if ($passo -eq 'Teste') {
         if (-not $W.Testou -or $W.Erro) { ExecutarTeste; return }
     }
-    if ($W.Passo -eq 7) { Concluir; return }
+    if ($passo -eq 'Pronto') { Concluir; return }
 
     $problema = ProblemaDoPasso
     if ($problema) { Avisar $problema; return }
@@ -961,7 +1065,7 @@ $btnVoltar.Add_Click({
     if ($W.Passo -le 1) { return }
     $W.Passo--
     # Voltar depois de um teste que falhou tem que permitir testar de novo.
-    if ($W.Passo -lt 6) { $W.Testou = $false; $W.Erro = '' }
+    if ((NomeDoPasso $W.Passo) -ne 'Teste') { $W.Testou = $false; $W.Erro = '' }
     Renderizar
 })
 

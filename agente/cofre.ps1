@@ -395,7 +395,7 @@ try {
 try {
     Etapa 'publicando o estado no Cofre' '' 100
     $pub = PublicarEstado -Rclone $rclone -Config $rcloneConf `
-        -Remoto $config.Remoto `
+        -Bucket $config.Bucket `
         -Cartorio (NomeParaDestino $config.Cartorio) `
         -Servidor (NomeParaDestino $ambiente.Maquina) `
         -ArquivoEstado $ArquivoEstado

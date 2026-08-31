@@ -193,7 +193,7 @@ function Desenhar {
                 if ($rcl) {
                     $Ctx.Parque = LerParque -Rclone $rcl `
                         -Config (CaminhoDe $dados 'rclone.conf') `
-                        -Remoto $(if ($cfg) { $cfg.Remoto } else { 'cofre' })
+                        -Bucket $(if ($cfg -and $cfg.Bucket) { $cfg.Bucket } else { "backup-aws-ch" })
                 }
             }
             $area.Children.Add((TelaParque $Ctx.Parque $temConf $janela {

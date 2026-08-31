@@ -239,7 +239,9 @@ function PublicarEstado {
     param(
         [Parameter(Mandatory)] [string]$Rclone,
         [Parameter(Mandatory)] [string]$Config,
-        [Parameter(Mandatory)] [string]$Remoto,
+        # O remote SEM cifra, e o bucket: ver o comentario grande abaixo.
+        [string]$RemotoSemCifra = 'cofre-s3',
+        [Parameter(Mandatory)] [string]$Bucket,
         [Parameter(Mandatory)] [string]$Cartorio,
         [Parameter(Mandatory)] [string]$Servidor,
         [Parameter(Mandatory)] [string]$ArquivoEstado
@@ -261,7 +263,33 @@ function PublicarEstado {
         New-Item -ItemType Directory -Path $temp -Force | Out-Null
         Copy-Item $ArquivoEstado (CaminhoDe $temp 'estado.json') -Force
 
-        $r.Destino = "${Remoto}:$Cartorio/$Servidor/_estado"
+        <#
+            O ESTADO VAI SEM CIFRA, E ISSO E UMA DECISAO.
+
+            Ele ia por "cofre:", que e o remote CIFRADO. So que cada cartorio
+            gera a PROPRIA chave - entao o computador do gerente, com a chave
+            dele, nunca conseguiria decifrar o estado de cartorio nenhum. O
+            modo gerente nao tinha como funcionar.
+
+            Havia dois caminhos. Usar uma chave unica no parque inteiro faria o
+            gerente ler tudo - e um vazamento em um cartorio abriria os 38.
+            Recusado.
+
+            O caminho daqui: o BACKUP continua cifrado com a chave de cada
+            cartorio, e so o estado sai em claro, por "cofre-s3:", que e o S3
+            direto. O gerente le o parque com credencial propria, sem precisar
+            da chave de ninguem.
+
+            O QUE FICA VISIVEL para quem entrar no bucket: nome do cartorio,
+            nome do servidor, nome dos itens, datas, tamanhos e se deu certo.
+            Nada de conteudo de cliente. E a arvore de pastas ja mostrava tudo
+            isso, porque directory_name_encryption esta desligado de proposito
+            para a estrutura ser legivel no console da AWS.
+
+            Para RESTAURAR um cartorio o gerente continua precisando da chave
+            daquele cartorio. Ver o parque e uma coisa; abrir o backup e outra.
+        #>
+        $r.Destino = "${RemotoSemCifra}:$Bucket/$Cartorio/$Servidor/_estado"
 
         <#
             STANDARD, e nao DEEP_ARCHIVE.
