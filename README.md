@@ -1,130 +1,156 @@
-# CH.Com Backup
+# CH.Com Cofre
 
-> Backup em nuvem **monitorado** para cartórios — instalação em um clique no servidor do cliente e um painel só, com todos eles.
->
-> *Self-hosted monitoring panel and one-click installer for Duplicati-based offsite backups across many client sites.*
+**A cópia que fica fora.** Disaster recovery para servidores de cartório, em
+S3 Glacier Deep Archive, sem licença comercial nenhuma.
 
-Um provedor de TI que cuida de dezenas de cartórios tem o mesmo problema em todos: o backup roda de madrugada, ninguém olha, e a falha só aparece no dia em que alguém precisa restaurar. Este projeto ataca isso por dois lados — padroniza a instalação no servidor do cliente e junta o resultado de todos num painel.
-
----
-
-## 🧩 As duas partes
-
-| Parte | Onde roda | Para quê |
-|---|---|---|
-| **`cartorio/`** | no servidor de cada cliente | instala, configura e diagnostica o backup |
-| **`painel/`** | numa máquina só, do provedor | recebe o relatório de todos e mostra quem falhou |
-
-Cada servidor manda um relatório ao fim de cada execução. O painel guarda o histórico e responde a pergunta que importa: **algum cliente parou de fazer backup?**
-
-## ✨ O que ele faz
-
-- **Instalação em um clique** — o `INSTALAR.bat` instala o Duplicati se não houver, aplica a identidade visual e deixa o programa no ar.
-- **Regras padronizadas** — cópia de arquivos abertos (VSS), filtros de lixo e tolerância a link instável, iguais em todos os clientes.
-- **Detecta backup que PAROU** — a falha mais perigosa não é a que dá erro, é a que some. Um cliente cujo último relatório diz "sucesso" mas não reporta há três dias aparece como **parado**, não como verde.
-- **Diagnóstico que resolve** — diz o que está errado, se o programa caiu sozinho (lendo o log do Windows) e se oferece para religar.
-- **Histórico por versão** — quanto subiu, em quanto tempo, a que velocidade, e o texto do erro quando falha.
-- **Arquivo morto na AWS** — receita pronta para guardar em S3 Glacier Deep Archive, com o procedimento de restauração escrito antes de precisar.
-
-## 🧱 Stack
-
-| Camada | Tecnologia |
-|---|---|
-| Painel | **Node.js 22** · **TypeScript** · **Express** · **SQLite** |
-| Telas | HTML e CSS escritos à mão, sem framework de frontend |
-| Servidor do cliente | **PowerShell 5.1** (o que já existe em qualquer Windows) |
-| Motor de backup | **[Duplicati](https://duplicati.com)** (MIT) |
-| Publicação | **Docker** · **Caddy** (HTTPS automático) |
-
-Sem framework de frontend e sem biblioteca de gráficos de propósito: o painel precisa abrir rápido pela conexão de um cliente do interior, e continuar abrindo daqui a alguns anos sem nada para reconstruir.
+Não substitui o backup local — existe para o caso de perda total: incêndio,
+roubo, ou os servidores irem embora de uma vez.
 
 ---
 
-## 🚀 Rodando o painel
+## O problema
 
-Pré-requisitos: **Node 22+**.
+Um provedor de TI que cuida de dezenas de cartórios tem backup local em todos
+eles. O que não tem é a cópia **fora do prédio** — e é ela que decide se o
+cartório volta a funcionar depois de um desastre.
 
-```bash
-git clone https://github.com/CauaSoft/chcom-backup.git
-cd chcom-backup/painel
-npm install
-npm run build
-npm run migrar            # cria o banco
-npm run definir-senha     # gera a senha de administrador e mostra uma vez
-npm start                 # http://localhost:3000
-```
+As soluções que fazem isso direito custam por servidor. Multiplicado por 50
+cartórios, vira uma conta que não fecha.
 
-No painel, cadastre cada cliente. Ele devolve uma **URL com token** — é ela que vai no backup do servidor daquele cliente.
+## A ideia
 
-## 🖥️ Instalando num servidor de cliente
-
-Leve a pasta `cartorio/` para o servidor e rode, nesta ordem:
+O Windows já sabe fazer as partes difíceis. Falta alguém orquestrar.
 
 ```
-INSTALAR.bat          instala o Duplicati (se preciso) e aplica a identidade
-APLICAR-REGRAS.bat    liga VSS, filtros e tolerância a queda de link
-DEFINIR-SENHA.bat     define uma senha de acesso que você conheça
+   SERVIDOR                     O QUE O WINDOWS JÁ FAZ
+   ────────                     ──────────────────────
+   host Hyper-V      ──────▶    Export-VM com production checkpoint
+                                (VSS dentro da VM, sem desligar nada)
+                     ──────▶    wbadmin -allCritical
+                                (o host: sistema, switches, config)
+
+   servidor físico   ──────▶    wbadmin -allCritical
+                                (recuperação bare metal)
+
+   Firebird          ──────▶    gbak
+   SQL Server        ──────▶    BACKUP DATABASE + RESTORE VERIFYONLY
+   discos e pastas   ──────▶    cópia de sombra (VSS de volume)
+                                       │
+                                       ▼
+                              VALIDAÇÃO ANTES DE SUBIR
+                              Compare-VM · gbak -c · SHA-256
+                                       │
+                                       ▼
+                              rclone crypt  (AES-256, aqui)
+                                       │
+                                       ▼
+                              S3 Glacier Deep Archive
+                              (~US$ 1 por TB por mês)
 ```
 
-Depois, na tela do backup, configure o destino e cole a URL que o painel gerou em `send-http-json-urls`.
-
-Se algo não funcionar:
-
-```
-DIAGNOSTICO.bat       o que está instalado, se caiu, quando o backup rodou
-CORRIGIR-S3.bat       conserta destinos gravados como "s3-aws://"
-DESINSTALAR.bat       devolve o Duplicati ao original
-```
-
-## 🌐 Publicando o painel
-
-Enquanto o painel só existe em `localhost`, os clientes **não conseguem** mandar relatório — o endereço é local, e `localhost` dentro do servidor do cliente aponta para ele mesmo.
-
-Duas receitas prontas em [`docs/PUBLICAR-NA-INTERNET.md`](./docs/PUBLICAR-NA-INTERNET.md):
-
-```bash
-# VPS com IP público — Caddy pede e renova o certificado sozinho
-docker compose -f docker-compose.producao.yml up -d --build
-
-# Máquina própria atrás de CGNAT — túnel, sem abrir porta no roteador
-docker compose -f docker-compose.tunel.yml up -d --build
-```
-
-Em qualquer um dos dois o painel fica **sem porta aberta**: quem fala com a internet é o proxy. O token de cada cliente viaja em cada relatório e é ele que autentica o cliente — uma requisição em texto aberto já o entrega.
+Tudo nativo ou open source. O único componente de terceiro é o
+[rclone](https://rclone.org) (licença MIT), que faz criptografia e transporte.
 
 ---
 
-## 📁 Estrutura
+## O agente decide sozinho
+
+Não há configuração por cartório. Ele olha o servidor e monta o plano:
 
 ```
-painel/          o painel (Node + TypeScript + SQLite)
-  src/rotas/     recebimento de relatório, telas e login
-  src/duplicati/ leitura do JSON que o Duplicati manda
-  src/views/     o HTML de cada tela
-cartorio/        o que roda no servidor do cliente (PowerShell)
-marca/           identidade visual e os geradores do pacote
-docs/            guias de publicação, restauração e AWS
+  Plano para esta maquina: host Hyper-V
+      MAQUINA VIRTUAL      VM-SISTEMA
+         mensal - Export-VM com production checkpoint (application-consistent)
+      MAQUINA VIRTUAL      VM-ARQUIVOS
+         mensal - SEM production checkpoint - vai sair CRASH-CONSISTENT
+      IMAGEM DO SERVIDOR   Host CARTORIO-01 (sistema e config do Hyper-V)
+         mensal - wbadmin -allCritical
+      BANCO FIREBIRD       C:\Firebird\3.0
+         diaria - gbak: copiar o .fdb aberto nao e backup valido
 ```
 
-## 📚 Documentação
+Repare na segunda VM. Ela vai subir, vai ficar verde — e o plano **diz na cara**
+que sai crash-consistent, porque faltam os Serviços de Integração dentro dela.
+Um backup com promessa e um backup com torcida não são a mesma luz verde.
 
-| Arquivo | Assunto |
-|---|---|
-| [`docs/PUBLICAR-NA-INTERNET.md`](./docs/PUBLICAR-NA-INTERNET.md) | pôr o painel no ar, com HTTPS |
-| [`docs/AWS-REGRA-DEEP-ARCHIVE.txt`](./docs/AWS-REGRA-DEEP-ARCHIVE.txt) | mover os dados para arquivo morto e o que isso custa |
-| [`docs/RESTAURAR-DO-ARQUIVO-MORTO.txt`](./docs/RESTAURAR-DO-ARQUIVO-MORTO.txt) | restaurar de lá, passo a passo, com os tempos reais |
-| [`docs/COMO-GERAR-O-INSTALADOR.md`](./docs/COMO-GERAR-O-INSTALADOR.md) | montar o pacote de instalação |
+---
 
-## ⚠️ O que este projeto não faz
+## Três decisões que definem o projeto
 
-- **Não substitui o Duplicati.** Ele padroniza, monitora e embala — o backup em si é do Duplicati.
-- **Não testa restauração sozinho.** Quando os dados vão para arquivo morto, a conferência automática do backup precisa ser desligada (não se lê arquivo congelado). A prova de que o backup presta passa a ser um teste de restauração feito por gente, de tempos em tempos.
-- **Não guarda a senha de criptografia dos backups.** Sem ela, os arquivos não abrem — nem para você, nem para ninguém. Ela vive no seu cofre de senhas.
+### Nada sobe sem ser conferido antes
 
-## 📄 Licença
+`Compare-VM` confirma que o export é importável. `gbak -c` restaura o `.fbk`
+num banco descartável. `RESTORE VERIFYONLY` lê o `.bak` inteiro. E cada
+arquivo ganha uma impressão digital SHA-256, gravada num manifesto que viaja
+junto — e é conferida de volta na restauração.
 
-MIT — veja [LICENSE](./LICENSE).
+Conferir depois não serve: em Deep Archive, ler o que já subiu custa dinheiro
+e leva de 12 a 48 horas. A única hora barata de conferir é enquanto o arquivo
+ainda está no disco local.
 
-Este projeto usa o [Duplicati](https://duplicati.com) (MIT) e **não é** um produto oficial dele. Detalhes em [NOTICE.md](./NOTICE.md).
+### Deep Archive direto, sem regra de ciclo de vida
 
-O nome e o logotipo **CH.Com** não estão cobertos pela licença. Reaproveitando o código, troque-os pelos seus.
+A lifecycle rule do S3 filtra por prefixo, **não por final de nome**. Com ela,
+os índices congelam junto com os dados — e recuperar um arquivo de 10 KB
+exigiria descongelar o repositório inteiro.
+
+O rclone grava a classe no próprio envio, e cada cópia fica independente das
+outras. Perder uma não afeta as demais.
+
+### O motor e a interface são dois programas
+
+Backup de cartório roda às 2 da manhã, sem ninguém na frente. Um backup que
+morre quando alguém fecha a janela não é backup.
+
+O motor escreve `estado.json` a cada passo; a janela lê e desenha. Fechar a
+janela não interrompe nada, e um erro de tela nunca custa o backup de um
+cartório.
+
+---
+
+## A chave
+
+Tudo é cifrado no servidor antes de sair. **Sem a chave, o que está na AWS é
+lixo irrecuperável** — nem a Amazon, nem quem tiver a senha da conta consegue
+ler.
+
+Por isso o assistente **não deixa continuar** enquanto a chave não for
+guardada fora do cartório. Se ela existir só no servidor e o servidor for
+destruído — que é o cenário exato para o qual o Cofre existe — o backup morre
+junto.
+
+---
+
+## Instalação
+
+1. Descompacte o pacote no servidor
+2. Dois cliques em `INSTALAR.bat`
+3. O assistente cuida do resto: destino, chave, teste real contra a AWS,
+   e o agendamento
+
+Antes disso, é preciso ter na AWS um bucket e um usuário IAM. O `LEIA-ME.txt`
+do pacote traz a política pronta para copiar — inclusive o `s3:RestoreObject`,
+sem o qual o backup **sobe e nunca volta**.
+
+## Recuperação
+
+Leia [`docs/RESTAURAR-DO-COFRE.txt`](docs/RESTAURAR-DO-COFRE.txt) **antes** de
+precisar. No dia em que precisar, ninguém tem cabeça para aprender
+procedimento novo.
+
+O ponto que pega as pessoas de surpresa: Deep Archive não é imediato.
+Recuperar exige pedir o descongelamento e esperar de 12 a 48 horas. Isso não
+tem como acelerar, e quem promete restauração imediata de Deep Archive está
+enganando alguém.
+
+---
+
+## Estado
+
+Construído e verificado; **ainda não exercitado contra a AWS de produção**.
+O assistente testa a conexão sozinho na primeira instalação — sobe 8 MB,
+confere, apaga e mede o link real.
+
+## Licença
+
+MIT. Usa o [rclone](https://rclone.org) (MIT) para criptografia e transporte.

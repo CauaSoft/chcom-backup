@@ -1,0 +1,101 @@
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="CH.Com Cofre - Configuracao" Height="700" Width="900"
+        WindowStartupLocation="CenterScreen" ResizeMode="NoResize"
+        Background="#0B0F14" FontFamily="Segoe UI" TextOptions.TextFormattingMode="Display">
+  <Window.Resources>
+    <Style x:Key="BotaoPrimario" TargetType="Button">
+      <Setter Property="Foreground" Value="White"/>
+      <Setter Property="FontSize" Value="14"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+      <Setter Property="Height" Value="44"/>
+      <Setter Property="MinWidth" Value="150"/>
+      <Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border x:Name="b" Background="#1E90FF" CornerRadius="7" Padding="26,0">
+              <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="b" Property="Background" Value="#3DA5FF"/>
+              </Trigger>
+              <Trigger Property="IsEnabled" Value="False">
+                <Setter TargetName="b" Property="Background" Value="#1A222D"/>
+                <Setter Property="Foreground" Value="#5D6C7D"/>
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+    <Style x:Key="BotaoSecundario" TargetType="Button" BasedOn="{StaticResource BotaoPrimario}">
+      <Setter Property="Foreground" Value="#93A2B3"/>
+      <Setter Property="FontWeight" Value="Normal"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border x:Name="b" Background="Transparent" BorderBrush="#212B37" BorderThickness="1"
+                    CornerRadius="7" Padding="24,0">
+              <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="b" Property="Background" Value="#141B24"/>
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+  </Window.Resources>
+
+  <Grid>
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="*"/>
+      <RowDefinition Height="Auto"/>
+    </Grid.RowDefinitions>
+
+    <!-- topo -->
+    <Border Grid.Row="0" Background="#0F141B" BorderBrush="#212B37" BorderThickness="0,0,0,1"
+            Padding="32,22">
+      <Grid>
+        <StackPanel Orientation="Horizontal">
+          <Image x:Name="imgLogo" Width="44" Height="44" Margin="0,0,15,0"/>
+          <StackPanel VerticalAlignment="Center">
+            <TextBlock x:Name="txtEtapa" Text="Bem-vindo" Foreground="#EAF1F8"
+                       FontSize="20" FontWeight="SemiBold"/>
+            <TextBlock x:Name="txtSubEtapa" Text="" Foreground="#93A2B3" FontSize="12.5"
+                       Margin="0,3,0,0"/>
+          </StackPanel>
+        </StackPanel>
+        <TextBlock x:Name="txtPasso" Text="1 de 6" Foreground="#5D6C7D" FontSize="13"
+                   HorizontalAlignment="Right" VerticalAlignment="Center"/>
+      </Grid>
+    </Border>
+
+    <!-- conteudo -->
+    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="32,26">
+      <Grid x:Name="areaPasso"/>
+    </ScrollViewer>
+
+    <!-- rodape -->
+    <Border Grid.Row="2" Background="#0F141B" BorderBrush="#212B37" BorderThickness="0,1,0,0"
+            Padding="32,18">
+      <Grid>
+        <ProgressBar x:Name="barra" Height="4" VerticalAlignment="Top" Margin="0,-18,0,0"
+                     Background="#141B24" Foreground="#1E90FF" BorderThickness="0"
+                     Minimum="0" Maximum="7" Value="1"/>
+        <Button x:Name="btnVoltar" Style="{StaticResource BotaoSecundario}" Content="Voltar"
+                HorizontalAlignment="Left"/>
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+          <Button x:Name="btnCancelar" Style="{StaticResource BotaoSecundario}" Content="Cancelar"
+                  Margin="0,0,12,0"/>
+          <Button x:Name="btnAvancar" Style="{StaticResource BotaoPrimario}" Content="Avancar"/>
+        </StackPanel>
+      </Grid>
+    </Border>
+  </Grid>
+</Window>

@@ -1,0 +1,78 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <!--
+    A BARRA DE ROLAGEM.
+
+    Fica num arquivo separado, e nao copiada nos dois XAML, porque estilo
+    duplicado sai de sincronia. Ja aconteceu neste projeto: os botoes do
+    assistente se chamavam "Primario" e os da janela "BotaoPrimario", e o
+    passo da chave quebrava - justo o passo que nao pode falhar.
+
+    A barra padrao do WPF e grossa, cinza e tem setas nas pontas: um controle
+    de 2005 no meio de uma tela escura. Esta aqui e uma faixa fina que so
+    aparece quando ha o que rolar, sem setas e sem fundo.
+  -->
+  <Style TargetType="ScrollBar">
+    <Setter Property="Background" Value="Transparent"/>
+    <Setter Property="BorderThickness" Value="0"/>
+    <Setter Property="Width" Value="10"/>
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="ScrollBar">
+          <Grid Background="Transparent">
+            <Track x:Name="PART_Track" IsDirectionReversed="True">
+              <Track.Thumb>
+                <Thumb>
+                  <Thumb.Template>
+                    <ControlTemplate TargetType="Thumb">
+                      <Border x:Name="alca" Background="#2C3947"
+                              CornerRadius="4" Margin="3,0" MinHeight="30"/>
+                      <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                          <Setter TargetName="alca" Property="Background" Value="#3D4C5C"/>
+                        </Trigger>
+                        <Trigger Property="IsDragging" Value="True">
+                          <Setter TargetName="alca" Property="Background" Value="#1E90FF"/>
+                        </Trigger>
+                      </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                  </Thumb.Template>
+                </Thumb>
+              </Track.Thumb>
+
+              <!--
+                Os dois botoes de pagina precisam EXISTIR - o Track os procura
+                pelo nome - mas ficam invisiveis. Sao eles que fazem clicar na
+                trilha rolar uma pagina; sem eles, so o arrastar funcionaria.
+              -->
+              <Track.IncreaseRepeatButton>
+                <RepeatButton Command="ScrollBar.PageDownCommand" Opacity="0"
+                              Focusable="False" IsTabStop="False"/>
+              </Track.IncreaseRepeatButton>
+              <Track.DecreaseRepeatButton>
+                <RepeatButton Command="ScrollBar.PageUpCommand" Opacity="0"
+                              Focusable="False" IsTabStop="False"/>
+              </Track.DecreaseRepeatButton>
+            </Track>
+          </Grid>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+
+    <!-- Deitada, a barra troca largura por altura. Sem isto ela some. -->
+    <Style.Triggers>
+      <Trigger Property="Orientation" Value="Horizontal">
+        <Setter Property="Width" Value="Auto"/>
+        <Setter Property="Height" Value="10"/>
+      </Trigger>
+    </Style.Triggers>
+  </Style>
+
+  <!-- O ScrollViewer sem borda nem fundo proprio. -->
+  <Style TargetType="ScrollViewer">
+    <Setter Property="BorderThickness" Value="0"/>
+    <Setter Property="Background" Value="Transparent"/>
+  </Style>
+
+</ResourceDictionary>

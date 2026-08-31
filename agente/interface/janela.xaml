@@ -1,0 +1,241 @@
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="CH.Com Cofre" Height="800" Width="1320"
+        MinHeight="680" MinWidth="1100"
+        WindowStartupLocation="CenterScreen"
+        Background="#0B0F14" FontFamily="Segoe UI" TextOptions.TextFormattingMode="Display">
+
+  <Window.Resources>
+    <!-- ============ PALETA CH.Com ============ -->
+    <SolidColorBrush x:Key="Fundo"       Color="#0B0F14"/>
+    <SolidColorBrush x:Key="Painel"      Color="#0F141B"/>
+    <SolidColorBrush x:Key="Cartao"      Color="#141B24"/>
+    <SolidColorBrush x:Key="CartaoAlto"  Color="#1A222D"/>
+    <SolidColorBrush x:Key="Borda"       Color="#212B37"/>
+    <SolidColorBrush x:Key="Azul"        Color="#1E90FF"/>
+    <SolidColorBrush x:Key="AzulFraco"   Color="#14497F"/>
+    <SolidColorBrush x:Key="Texto"       Color="#EAF1F8"/>
+    <SolidColorBrush x:Key="Texto2"      Color="#93A2B3"/>
+    <SolidColorBrush x:Key="Texto3"      Color="#5D6C7D"/>
+    <SolidColorBrush x:Key="Verde"       Color="#2ECC71"/>
+    <SolidColorBrush x:Key="Amarelo"     Color="#F0A62E"/>
+    <SolidColorBrush x:Key="Vermelho"    Color="#FF4D5A"/>
+
+    <!-- Gradiente do topo, no azul da marca -->
+    <LinearGradientBrush x:Key="BrilhoAzul" StartPoint="0,0" EndPoint="1,1">
+      <GradientStop Color="#1E90FF" Offset="0"/>
+      <GradientStop Color="#0B4A8F" Offset="1"/>
+    </LinearGradientBrush>
+
+    <!-- ============ ITEM DO MENU ============ -->
+    <Style x:Key="ItemMenu" TargetType="RadioButton">
+      <Setter Property="Foreground" Value="#93A2B3"/>
+      <Setter Property="FontSize" Value="13.5"/>
+      <Setter Property="Height" Value="46"/>
+      <Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="Margin" Value="10,2"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="RadioButton">
+            <Border x:Name="b" Background="Transparent" CornerRadius="8">
+              <Grid>
+                <Border x:Name="marca" Width="3" HorizontalAlignment="Left" Height="20"
+                        CornerRadius="2" Background="Transparent"/>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="16,0,0,0">
+                  <TextBlock x:Name="ico" Text="{TemplateBinding Tag}"
+                             FontFamily="Segoe MDL2 Assets" FontSize="16"
+                             Width="26" VerticalAlignment="Center"
+                             Foreground="{TemplateBinding Foreground}"/>
+                  <ContentPresenter VerticalAlignment="Center"/>
+                </StackPanel>
+              </Grid>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="b" Property="Background" Value="#141B24"/>
+                <Setter Property="Foreground" Value="#EAF1F8"/>
+              </Trigger>
+              <Trigger Property="IsChecked" Value="True">
+                <Setter TargetName="b" Property="Background" Value="#16283D"/>
+                <Setter TargetName="marca" Property="Background" Value="#1E90FF"/>
+                <Setter Property="Foreground" Value="#FFFFFF"/>
+                <Setter Property="FontWeight" Value="SemiBold"/>
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <!-- ============ BOTOES ============ -->
+    <Style x:Key="BotaoPrimario" TargetType="Button">
+      <Setter Property="Foreground" Value="White"/>
+      <Setter Property="FontSize" Value="13.5"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+      <Setter Property="Height" Value="42"/>
+      <Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border x:Name="b" Background="#1E90FF" CornerRadius="7" Padding="26,0">
+              <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                <TextBlock Text="{TemplateBinding Tag}" FontFamily="Segoe MDL2 Assets"
+                           FontSize="15" Margin="0,0,10,0" VerticalAlignment="Center"/>
+                <ContentPresenter VerticalAlignment="Center"/>
+              </StackPanel>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="b" Property="Background" Value="#3DA5FF"/>
+              </Trigger>
+              <Trigger Property="IsPressed" Value="True">
+                <Setter TargetName="b" Property="Background" Value="#1272CC"/>
+              </Trigger>
+              <Trigger Property="IsEnabled" Value="False">
+                <Setter TargetName="b" Property="Background" Value="#1A222D"/>
+                <Setter Property="Foreground" Value="#5D6C7D"/>
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <Style x:Key="BotaoSecundario" TargetType="Button" BasedOn="{StaticResource BotaoPrimario}">
+      <Setter Property="Foreground" Value="#EAF1F8"/>
+      <Setter Property="FontWeight" Value="Normal"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border x:Name="b" Background="#1A222D" BorderBrush="#212B37" BorderThickness="1"
+                    CornerRadius="7" Padding="22,0">
+              <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                <TextBlock Text="{TemplateBinding Tag}" FontFamily="Segoe MDL2 Assets"
+                           FontSize="14" Margin="0,0,9,0" VerticalAlignment="Center"/>
+                <ContentPresenter VerticalAlignment="Center"/>
+              </StackPanel>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="b" Property="Background" Value="#232E3B"/>
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+  </Window.Resources>
+
+  <Grid>
+    <Grid.ColumnDefinitions>
+      <ColumnDefinition Width="252"/>
+      <ColumnDefinition Width="*"/>
+    </Grid.ColumnDefinitions>
+
+    <!-- ==================== BARRA LATERAL ==================== -->
+    <Border Grid.Column="0" Background="{StaticResource Painel}"
+            BorderBrush="{StaticResource Borda}" BorderThickness="0,0,1,0">
+      <Grid>
+        <Grid.RowDefinitions>
+          <RowDefinition Height="Auto"/>
+          <RowDefinition Height="*"/>
+          <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- marca -->
+        <StackPanel Grid.Row="0" Margin="20,24,20,26">
+          <StackPanel Orientation="Horizontal">
+            <Image x:Name="imgLogo" Width="42" Height="42" Margin="0,0,12,0"/>
+            <StackPanel VerticalAlignment="Center">
+              <TextBlock Text="CH.Com" Foreground="{StaticResource Texto}"
+                         FontSize="17" FontWeight="Bold" LineHeight="19"/>
+              <TextBlock Text="COFRE" Foreground="{StaticResource Azul}"
+                         FontSize="12.5" FontWeight="SemiBold" LineHeight="15"
+                         Margin="0,1,0,0"/>
+            </StackPanel>
+          </StackPanel>
+        </StackPanel>
+
+        <!-- menu -->
+        <StackPanel Grid.Row="1">
+          <TextBlock Text="PROTECAO" Foreground="{StaticResource Texto3}" FontSize="10.5"
+                     FontWeight="SemiBold" Margin="26,4,0,8"/>
+          <RadioButton x:Name="mnuParque"    Style="{StaticResource ItemMenu}" GroupName="m"
+                       Content="Todos os cartorios" Tag="&#xE774;"/>
+          <RadioButton x:Name="mnuPainel"    Style="{StaticResource ItemMenu}" GroupName="m"
+                       Content="Painel"            Tag="&#xE80F;" IsChecked="True"/>
+          <RadioButton x:Name="mnuProtegido" Style="{StaticResource ItemMenu}" GroupName="m"
+                       Content="O que e protegido" Tag="&#xE72E;"/>
+          <RadioButton x:Name="mnuExecutar"  Style="{StaticResource ItemMenu}" GroupName="m"
+                       Content="Executar agora"    Tag="&#xE768;"/>
+
+          <TextBlock Text="RECUPERACAO" Foreground="{StaticResource Texto3}" FontSize="10.5"
+                     FontWeight="SemiBold" Margin="26,18,0,8"/>
+          <RadioButton x:Name="mnuRestaurar" Style="{StaticResource ItemMenu}" GroupName="m"
+                       Content="Restaurar"         Tag="&#xE777;"/>
+          <RadioButton x:Name="mnuHistorico" Style="{StaticResource ItemMenu}" GroupName="m"
+                       Content="Historico"         Tag="&#xE81C;"/>
+
+          <TextBlock Text="SISTEMA" Foreground="{StaticResource Texto3}" FontSize="10.5"
+                     FontWeight="SemiBold" Margin="26,18,0,8"/>
+          <RadioButton x:Name="mnuDestino"   Style="{StaticResource ItemMenu}" GroupName="m"
+                       Content="Destino na nuvem"  Tag="&#xE753;"/>
+          <RadioButton x:Name="mnuChave"     Style="{StaticResource ItemMenu}" GroupName="m"
+                       Content="Chave"             Tag="&#xE192;"/>
+          <RadioButton x:Name="mnuConfig"    Style="{StaticResource ItemMenu}" GroupName="m"
+                       Content="Configuracao"      Tag="&#xE713;"/>
+        </StackPanel>
+
+        <!-- rodape da lateral -->
+        <Border Grid.Row="2" BorderBrush="{StaticResource Borda}" BorderThickness="0,1,0,0"
+                Padding="20,14">
+          <StackPanel>
+            <TextBlock x:Name="txtMaquina" Text="-" Foreground="{StaticResource Texto2}"
+                       FontSize="12" TextTrimming="CharacterEllipsis"/>
+            <TextBlock x:Name="txtVersao" Text="versao 1.0" Foreground="{StaticResource Texto3}"
+                       FontSize="10.5" Margin="0,3,0,0"/>
+          </StackPanel>
+        </Border>
+      </Grid>
+    </Border>
+
+    <!-- ==================== AREA PRINCIPAL ==================== -->
+    <Grid Grid.Column="1">
+      <Grid.RowDefinitions>
+        <RowDefinition Height="76"/>
+        <RowDefinition Height="*"/>
+      </Grid.RowDefinitions>
+
+      <!-- cabecalho -->
+      <Border Grid.Row="0" Background="{StaticResource Painel}"
+              BorderBrush="{StaticResource Borda}" BorderThickness="0,0,0,1">
+        <Grid Margin="30,0">
+          <StackPanel VerticalAlignment="Center">
+            <TextBlock x:Name="txtTituloTela" Text="Painel"
+                       Foreground="{StaticResource Texto}" FontSize="20" FontWeight="SemiBold"/>
+            <TextBlock x:Name="txtSubtitulo" Text="" Foreground="{StaticResource Texto2}"
+                       FontSize="12" Margin="0,2,0,0"/>
+          </StackPanel>
+
+          <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+            <Border x:Name="pilulaEstado" Background="#132A1C" CornerRadius="20" Padding="14,7">
+              <StackPanel Orientation="Horizontal">
+                <Ellipse x:Name="luzEstado" Width="8" Height="8" Fill="#2ECC71"
+                         VerticalAlignment="Center" Margin="0,0,8,0"/>
+                <TextBlock x:Name="txtEstadoTopo" Text="verificando"
+                           Foreground="{StaticResource Texto}" FontSize="12.5" VerticalAlignment="Center"/>
+              </StackPanel>
+            </Border>
+            <Button x:Name="btnAtualizar" Style="{StaticResource BotaoSecundario}"
+                    Content="Atualizar" Tag="&#xE72C;" Margin="12,0,0,0" Height="38"/>
+          </StackPanel>
+        </Grid>
+      </Border>
+
+      <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="30,26,26,30">
+        <Grid x:Name="areaConteudo"/>
+      </ScrollViewer>
+    </Grid>
+  </Grid>
+</Window>

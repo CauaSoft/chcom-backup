@@ -1,0 +1,136 @@
+================================================================================
+  CH.Com Cofre - COMO RECUPERAR
+
+  Leia isto ANTES de precisar. No dia em que precisar, ninguem tem cabeca
+  para aprender procedimento novo.
+================================================================================
+
+--------------------------------------------------------------------------------
+  O QUE VOCE PRECISA TER EM MAOS
+--------------------------------------------------------------------------------
+
+  1. As DUAS CHAVES de criptografia daquele cartorio
+     (no envelope lacrado, ou no cofre de senhas do gerente)
+
+  2. As credenciais da AWS (Access Key e Secret)
+
+  3. Um computador com Windows, internet e espaco em disco suficiente
+
+  SEM AS CHAVES NAO HA RECUPERACAO. Nao ha suporte, nao ha excecao, nao ha
+  jeito. O que esta na AWS e cifrado com elas.
+
+--------------------------------------------------------------------------------
+  O TEMPO. LEIA ESTA PARTE COM ATENCAO.
+--------------------------------------------------------------------------------
+
+  Os dados estao no S3 Glacier Deep Archive. Ele custa cerca de 1 dolar por
+  terabyte por mes justamente porque NAO E IMEDIATO.
+
+  Antes de baixar qualquer coisa, e preciso PEDIR o descongelamento e ESPERAR:
+
+      modo economico (padrao)  ate 48 horas   ~0,0025 USD por GB
+      modo rapido              ate 12 horas   ~0,02 USD por GB
+
+  Isso nao tem como acelerar. Faca o pedido primeiro, avise o cartorio do
+  prazo, e so depois pense no resto.
+
+  RECOMENDACAO: peca o descongelamento assim que souber que vai precisar,
+  mesmo antes de decidir o que fazer. Custa pouco e o relogio comeca a correr.
+
+--------------------------------------------------------------------------------
+  PASSO A PASSO
+--------------------------------------------------------------------------------
+
+  PASSO 1 - VER O QUE EXISTE                          (imediato, sem custo)
+
+      Abra o CH.Com Cofre e va em "Restaurar".
+      Ou, pelo PowerShell, na pasta do Cofre:
+
+          .\restaurar-cofre.ps1 -Listar
+
+      Aparece a lista de pontos de recuperacao, por data. A listagem le so os
+      metadados: nao precisa descongelar nada e nao custa resgate.
+
+  PASSO 2 - PEDIR O DESCONGELAMENTO                   (comeca a espera)
+
+          .\restaurar-cofre.ps1 -Descongelar "cartorio/servidor/vm/VM-SISTEMA/2026-08-25"
+
+      Acrescente -Rapido se o cartorio nao puder esperar 48 horas. Custa cerca
+      de 8 vezes mais.
+
+  PASSO 3 - ESPERAR, CONFERINDO DE VEZ EM QUANDO
+
+          .\restaurar-cofre.ps1 -Situacao "<o mesmo caminho>"
+
+      Enquanto disser "ainda descongelando", nao adianta tentar baixar: a AWS
+      recusa objeto congelado.
+
+  PASSO 4 - TRAZER E CONFERIR
+
+          .\restaurar-cofre.ps1 -Baixar "<caminho>" -Para D:\recuperado
+
+      O programa baixa, decifra, e confere CADA ARQUIVO contra a impressao
+      digital SHA-256 gravada no dia do backup.
+
+      So confie no que voltou se aparecer RECUPERACAO CONFERIDA. Se a
+      conferencia nao passar, baixe de novo - nao tente usar assim mesmo.
+
+--------------------------------------------------------------------------------
+  PASSO 5 - COLOCAR PARA FUNCIONAR
+--------------------------------------------------------------------------------
+
+  MAQUINA VIRTUAL (pasta com Virtual Hard Disks e Virtual Machines)
+
+      Em qualquer host Hyper-V, no PowerShell como Administrador:
+
+          Import-VM -Path "D:\recuperado\Virtual Machines\<arquivo>.vmcx" -Copy -GenerateNewId
+
+      -Copy e -GenerateNewId sao importantes: mantem os arquivos recuperados
+      intactos e evitam conflito de identificacao com a VM original, caso ela
+      ainda exista em algum lugar.
+
+      Depois, confira o switch de rede - o nome do switch no host novo
+      provavelmente e diferente, e a VM sobe sem rede ate isso ser ajustado.
+
+  IMAGEM DE SERVIDOR FISICO (pasta WindowsImageBackup)
+
+      Para restaurar a maquina inteira, no hardware novo:
+        1. Inicie pelo pendrive de instalacao do Windows Server
+        2. Escolha Reparar o computador
+        3. Recuperacao de Imagem do Sistema
+        4. Aponte para a pasta WindowsImageBackup recuperada
+
+      Para subir como maquina virtual enquanto o hardware nao chega: os VHDX
+      dentro da pasta podem ser anexados a uma VM Hyper-V nova. Nao e o
+      procedimento oficial, mas costuma ser o que coloca o cartorio para
+      trabalhar no dia seguinte.
+
+  BANCO FIREBIRD (.fbk)
+
+          gbak -c -v backup.fbk C:\caminho\banco-restaurado.fdb
+
+      Abra pelo sistema do cartorio e confira um registro recente ANTES de
+      declarar que voltou.
+
+  BANCO SQL SERVER (.bak)
+
+          RESTORE DATABASE [nome] FROM DISK = N'D:\recuperado\nome.bak'
+              WITH REPLACE, RECOVERY
+
+      Confira os logins depois: eles moram na base master, que tambem esta no
+      backup, mas restaurar master exige o SQL Server em modo especial.
+
+--------------------------------------------------------------------------------
+  O TESTE QUE VALE
+--------------------------------------------------------------------------------
+
+  Recuperar arquivos prova que o envio funcionou.
+  Ligar a VM e abrir o sistema do cartorio prova que existe DISASTER RECOVERY.
+
+  Faca esse teste completo pelo menos uma vez por ano, num servidor de
+  laboratorio, com outra pessoa seguindo este documento. Se o procedimento
+  so funciona com quem escreveu ele do lado, ele nao funciona.
+
+================================================================================
+  CH.Com Solucoes em Tecnologia
+================================================================================

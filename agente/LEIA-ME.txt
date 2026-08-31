@@ -1,0 +1,158 @@
+================================================================================
+
+   CH.Com COFRE
+   copia externa para desastre
+
+================================================================================
+
+
+  PARA INSTALAR
+
+      Dois cliques em INSTALAR.bat
+
+  Ele pede o aviso de Administrador do Windows, instala, e abre a janela de
+  configuracao. Nao ha comando para digitar.
+
+
+--------------------------------------------------------------------------------
+  ANTES DE IR AO CARTORIO: O QUE PRECISA ESTAR PRONTO NA AWS
+--------------------------------------------------------------------------------
+
+  Sao duas coisas, feitas uma unica vez no console da AWS.
+
+  1. UM BUCKET S3
+
+     Nome     : backup-aws-ch
+     Regiao   : us-east-2         (Ohio)
+     Bloquear acesso publico : SIM, as quatro opcoes
+     Versionamento           : DESATIVADO
+     Regra de ciclo de vida  : NENHUMA
+
+     A ultima linha e importante e vai contra o costume: o Cofre grava cada
+     arquivo JA na classe Glacier Deep Archive, no proprio envio. Regra de
+     ciclo de vida filtra por prefixo e congelaria tambem os indices - e ai
+     recuperar um arquivo de 10 KB exigiria descongelar tudo.
+
+  2. UM USUARIO IAM SO PARA O COFRE
+
+     Em IAM > Usuarios > criar usuario, SEM acesso ao console, so chave de
+     acesso. Politica inline:
+
+     {
+       "Version": "2012-10-17",
+       "Statement": [
+         {
+           "Effect": "Allow",
+           "Action": ["s3:ListBucket", "s3:GetBucketLocation"],
+           "Resource": "arn:aws:s3:::backup-aws-ch"
+         },
+         {
+           "Effect": "Allow",
+           "Action": [
+             "s3:PutObject", "s3:GetObject", "s3:DeleteObject",
+             "s3:RestoreObject", "s3:GetObjectAttributes",
+             "s3:AbortMultipartUpload", "s3:ListMultipartUploadParts"
+           ],
+           "Resource": "arn:aws:s3:::backup-aws-ch/*"
+         }
+       ]
+     }
+
+     ATENCAO ao s3:RestoreObject. E ele que permite DESCONGELAR os arquivos
+     do Deep Archive. Sem essa permissao o backup sobe normalmente e NUNCA
+     VOLTA - e isso so apareceria no dia do desastre.
+
+     Guarde a Access Key e a Secret Access Key. O assistente pede as duas.
+
+
+--------------------------------------------------------------------------------
+  A CHAVE DE CRIPTOGRAFIA
+--------------------------------------------------------------------------------
+
+  Durante a instalacao o Cofre gera uma chave e cifra tudo NESTE servidor,
+  antes de qualquer byte sair. A AWS recebe conteudo e nomes cifrados.
+
+  SEM A CHAVE, O QUE ESTA NA AWS E LIXO IRRECUPERAVEL. Nem a CH.Com, nem a
+  Amazon, nem quem tiver a senha da conta consegue ler.
+
+  O assistente NAO DEIXA CONTINUAR sem voce confirmar que guardou a chave.
+  Guarde em tres lugares, e um deles fora do cartorio:
+
+      1. neste servidor        (o Cofre grava sozinho)
+      2. no seu cofre de senhas
+      3. em papel, envelope lacrado
+
+  Se a chave existir so no servidor e o servidor for destruido - que e
+  exatamente o cenario para o qual o Cofre existe - o backup morre junto.
+
+
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+  UM PROGRAMA, DOIS MODOS
+--------------------------------------------------------------------------------
+
+  O mesmo instalador serve para o servidor do cartorio e para o seu
+  computador. O programa olha onde esta e mostra o que faz sentido:
+
+    NO SERVIDOR DO CARTORIO
+      protege o que ha ali - maquinas virtuais, bancos, discos e pastas -
+      e publica o proprio estado no bucket ao fim de cada copia.
+
+    NO SEU COMPUTADOR
+      a tela "Todos os cartorios" le os estados que cada agente publicou e
+      mostra o parque inteiro: quem esta em dia, quem falhou, quem parou de
+      reportar.
+
+  NAO HA SERVIDOR NO MEIO. Nenhum endereco publico, nenhum dominio, nenhum
+  certificado, nenhuma maquina ligada o tempo todo. Quem tem a credencial de
+  leitura do bucket ve o parque, de qualquer lugar.
+
+  A mesma credencial da AWS serve para os dois: no cartorio ela envia, no seu
+  computador ela le.
+
+
+  O QUE ELE FAZ, DEPOIS DE INSTALADO
+--------------------------------------------------------------------------------
+
+  Ele olha o servidor e decide sozinho:
+
+      host Hyper-V       exporta cada VM com production checkpoint
+      servidor fisico    imagem com wbadmin, para recuperacao bare metal
+      Firebird           gbak (copiar o .fdb aberto NAO e backup valido)
+      SQL Server         BACKUP DATABASE com COPY_ONLY
+
+  Cada copia e conferida ANTES de subir, cifrada, enviada direto para o Deep
+  Archive, e conferida de novo no destino.
+
+  Agendamento:
+      bancos           todo dia, 01:30
+      VMs e imagem     a cada 4 semanas, sabado 22:00
+
+
+--------------------------------------------------------------------------------
+  OS BOTOES
+--------------------------------------------------------------------------------
+
+  INSTALAR.bat            instala e abre o assistente
+  CH.Com Cofre.bat        abre a janela
+  DIAGNOSTICO-COFRE.bat   diz o que ha no servidor e o que falta (nao altera nada)
+  BANDEJA.bat             poe o icone ao lado do relogio
+
+  Depois de instalado, use o atalho da area de trabalho.
+
+
+--------------------------------------------------------------------------------
+  RECUPERACAO
+--------------------------------------------------------------------------------
+
+  Leia docs\RESTAURAR-DO-COFRE.txt ANTES de precisar.
+
+  O ponto que costuma pegar as pessoas de surpresa: Deep Archive nao e
+  imediato. Recuperar exige PEDIR o descongelamento e ESPERAR de 12 a 48
+  horas. Isso nao tem como acelerar.
+
+
+================================================================================
+  CH.Com Solucoes em Tecnologia
+  O Cofre usa o rclone (licenca MIT) - ver LICENCA-RCLONE.txt
+================================================================================

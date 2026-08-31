@@ -1,41 +1,27 @@
-# Dependencias
-node_modules/
-painel/node_modules/
+# Arquivos DAQUELE servidor, nunca do repositorio.
+#
+# O rclone.conf carrega a CHAVE DE CRIPTOGRAFIA de um cartorio. Se ele entrar
+# aqui, o backup daquele cartorio fica legivel para quem clonar o projeto.
+cofre.conf
+rclone.conf
+estado.json
+estado.json.tmp
 
-# Compilado
+# Estado de execucao: e do servidor onde rodou.
+historico/
+registros/
+
+# O rclone tem 81 MB e vem do site oficial na hora de montar o pacote.
+# Binario de terceiro no repositorio incha o historico para sempre.
+rclone.exe
+
+# O pacote montado. Gerado por montar-pacote.ps1.
 dist/
-painel/dist/
-*.tsbuildinfo
 
-# O BANCO DO PAINEL. Contem o historico e os TOKENS de todos os cartorios.
-# Quem tem o token consegue enviar relatorio falso em nome de um cartorio.
-dados/
-painel/dados/
-*.db
-*.db-wal
-*.db-shm
+# Ferramenta de laboratorio: nao e produto.
+_rclone/
+_rclone.zip
 
-# Credenciais
-.env
-.env.*
-!.env.example
-*.key
-config-aws.json
-
-# Lista de servidores para configuracao em lote: contem as SENHAS de acesso
-# ao backup de cada cartorio. E o arquivo mais sensivel deste projeto.
-servidores.json
-servidores.*.json
-
-# Resultado de diagnostico rodado num servidor de cliente
-diagnostico-*.txt
-diagnostico-resultado.txt
-
-# Pacote montado (gerado por marca/criar-pacote.ps1)
-dist/
-*.zip
-
-npm-debug.log*
-*.log
-.DS_Store
-Thumbs.db
+# Escrito pelo instalador, nunca pelo repositorio: diz se esta instalacao e
+# de cartorio ou de gerente. No repositorio ele viraria um padrao acidental.
+modo.txt
