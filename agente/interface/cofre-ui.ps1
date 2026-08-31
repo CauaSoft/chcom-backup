@@ -496,25 +496,68 @@ $janela.Add_ContentRendered({ $relogio.Start() })
 $janela.Add_Closed({ $relogio.Stop() })
 
 <#
-    Primeira vez neste servidor?
+    SEM CONFIGURACAO, O PROGRAMA SE CONFIGURA SOZINHO.
 
-    A janela abre NORMALMENTE, mesmo sem configuracao - mostrando em vermelho
-    o que falta, com o botao de configurar na tela.
+    A primeira versao chamava o assistente ANTES de a janela abrir, com -Wait.
+    Duas coisas erradas: a janela ficava travada esperando o aviso do Windows,
+    e quem recusasse a elevacao ficava sem nada na tela.
 
-    A primeira versao chamava o assistente aqui, antes de abrir, com
-    -Verb RunAs -Wait. Duas coisas erradas nisso, e a segunda so apareceu em
-    teste:
+    A correcao de entao foi tirar tudo e deixar so um botao - o que empurrou o
+    trabalho para um .bat que ninguem deveria precisar rodar.
 
-      1. A janela ficava TRAVADA esperando o aviso do Windows ser respondido.
-         Sem ninguem para clicar, ela nunca abria - nem para dizer o que
-         estava acontecendo.
+    Agora o meio-termo, que e o que sempre deveria ter sido:
 
-      2. Bombardear com pedido de elevacao antes de a pessoa ver o programa e
-         a pior forma de comecar. Quem recusa fica sem nada na tela.
+      A JANELA ABRE PRIMEIRO. Depois de desenhada - e so depois - o assistente
+      sobe sozinho, num processo separado, sem travar nada. Quem recusar a
+      elevacao continua com o programa na tela e o botao "Configurar agora"
+      onde sempre esteve.
 
-    Agora quem decide e quem abriu: ve o estado, ve o que falta, e clica em
-    configurar quando quiser.
+    UMA VEZ SO POR SESSAO. Sem essa trava, fechar o assistente sem concluir
+    faria a janela reabri-lo na hora - um lacinho infinito de UAC, que e
+    exatamente o tipo de coisa que faz alguem desistir do produto.
 #>
+$Ctx.OfereceuAssistente = $false
+
+$janela.Add_ContentRendered({
+    if ($Ctx.OfereceuAssistente) { return }
+    $Ctx.OfereceuAssistente = $true
+    <#
+        Configurado pela metade tambem conta como nao configurado.
+
+        cofre.conf sem rclone.conf e um estado real e silencioso: o cartorio
+        aparece "configurado" na tela, o agendamento roda toda madrugada, e
+        nada sai do servidor porque nao ha chave nem credencial. Acontece
+        quando alguem cancela o assistente depois do passo do destino, ou
+        quando o teste falha - o rclone.conf e apagado de proposito nesse
+        caso, para o agendador nao ficar tentando um destino que nao funciona.
+
+        Entao a pergunta nao e "existe cofre.conf?", e sim "da para enviar
+        alguma coisa daqui?".
+    #>
+    $temConf  = Test-Path (CaminhoDe $dados 'cofre.conf')
+    $temChave = Test-Path (CaminhoDe $dados 'rclone.conf')
+    if ($temConf -and $temChave) { return }
+
+    # Um respiro para a janela terminar de aparecer antes do aviso do Windows:
+    # o pedido de elevacao em cima de uma tela ainda em branco parece travamento.
+    <#
+        O cronometro vai no $Ctx, e nao numa variavel local.
+
+        O bloco do Tick roda depois, fora daqui, e resolve nomes no escopo do
+        SCRIPT - nao no escopo desta funcao. Um $adiar declarado localmente
+        seria $null la dentro, e $adiar.Stop() estouraria dentro de um
+        manipulador de evento: janela morta, sem mensagem.
+
+        E o mesmo tropeco que ja derrubou o menu inteiro uma vez.
+    #>
+    $Ctx.Adiar = New-Object Windows.Threading.DispatcherTimer
+    $Ctx.Adiar.Interval = [TimeSpan]::FromMilliseconds(700)
+    $Ctx.Adiar.Add_Tick({
+        $Ctx.Adiar.Stop()
+        AbrirAssistente
+    })
+    $Ctx.Adiar.Start()
+})
 
 RecarregarInventario
 
