@@ -50,6 +50,10 @@ function MontarCenario {
     if (Test-Path $hist) { Remove-Item $hist -Recurse -Force }
     New-Item -ItemType Directory -Path $hist -Force | Out-Null
 
+    # Modo gerente: assim TODAS as telas existem para serem fotografadas,
+    # inclusive "Todos os cartorios", que no modo cartorio nem e criada.
+    [System.IO.File]::WriteAllText((CaminhoDe $dados 'modo.txt'), 'gerente')
+
     @{ Cartorio='cartorio-01'; Bucket='backup-aws-ch'; Regiao='us-east-2'; Remoto='cofre'
        PastaDeTrabalho='D:\Cofre'; MbpsMedido=10.6; Pastas=@('E:\DADOS'); Discos=@('E') } |
        ConvertTo-Json | Out-File (CaminhoDe $dados 'cofre.conf') -Encoding UTF8
@@ -132,6 +136,7 @@ try {
     . (Join-Path $ui 'cofre-ui.ps1') -NaoAbrir
 
     $telas = @(
+        @{ Menu='mnuParque';    Arquivo='0-parque.png' }
         @{ Menu='mnuPainel';    Arquivo='1-painel.png' }
         @{ Menu='mnuProtegido'; Arquivo='2-protegido.png' }
         @{ Menu='mnuExecutar';  Arquivo='3-executar.png' }
@@ -156,7 +161,8 @@ try {
         hoje ninguem tinha olhado para ele fora do momento de usar.
     #>
     . (Join-Path $ui 'assistente.ps1') -NaoAbrir
-    for ($p = 1; $p -le 7; $p++) {
+    # O total sai do modo: no gerente sao 5 passos, nao 7.
+    for ($p = 1; $p -le $W.Total; $p++) {
         $W.Passo = $p
         Renderizar
         $arq = Join-Path $Saida ("assistente-$p.png")

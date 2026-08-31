@@ -261,52 +261,26 @@ function TelaPainel($ambiente, $plano, $estado, $temConfig, $janela, $aoConfigur
         $sp.Children.Add($cT) | Out-Null
     }
 
-    # --- proporcao protegida + itens ---
-    $g = New-Object Windows.Controls.Grid
-    $g.Margin = '0,16,0,0'
-    $ca = New-Object Windows.Controls.ColumnDefinition; $ca.Width = '300'
-    $cb = New-Object Windows.Controls.ColumnDefinition; $cb.Width = '*'
-    $g.ColumnDefinitions.Add($ca) | Out-Null
-    $g.ColumnDefinitions.Add($cb) | Out-Null
-
-    $cRosca = NovoCartao
-    $cRosca.Margin = '0,0,14,0'
-    $spR = New-Object Windows.Controls.StackPanel
-    $spR.Children.Add((NovoTexto 'COBERTURA' 11.5 $Cores.Texto2 'SemiBold')) | Out-Null
-
-    $fracao = if ($totalItens -gt 0) { $plano.Tarefas.Count / $totalItens } else { 0 }
-    $rosca = Rosca $fracao $corCob ("{0:N0}%" -f ($fracao * 100)) 'protegido'
-    $rosca.Margin = '0,16,0,10'
-    $rosca.HorizontalAlignment = 'Center'
-    $spR.Children.Add($rosca) | Out-Null
-
-    <#
-        A legenda diz o que a rosca NAO diz.
-
-        "0 de 5 itens no Cofre" parecia contar o que subiu; conta o que o plano
-        alcanca. Quando ha copia na nuvem e o plano esta vazio, os dois numeros
-        precisam aparecer juntos - senao um desmente o outro em silencio.
-    #>
-    $leg = if ($mudou) { "$enviados item(ns) na nuvem, 0 no plano de hoje" }
-           else { "$($plano.Tarefas.Count) de $totalItens itens alcancados" }
-    $lg = NovoTexto $leg 12 $Cores.Texto3
-    $lg.HorizontalAlignment = 'Center'
-    $lg.TextAlignment = 'Center'
-    $spR.Children.Add($lg) | Out-Null
-
-    $cRosca.Child = $spR
-    [Windows.Controls.Grid]::SetColumn($cRosca, 0)
-    $g.Children.Add($cRosca) | Out-Null
-
     # --- o que esta no cofre ---
     <#
-        O titulo dizia "O QUE ESTA NO COFRE" e a lista trazia os MOTIVOS pelos
-        quais nada estava. Titulo que mente e pior que cartao vazio.
+        A ROSCA SAIU, E ISSO E MELHORIA.
 
-        Agora sao duas listas separadas: o que esta protegido, e o que ficou
-        de fora. Cada uma com o seu nome.
+        Ela desenhava a mesma fracao do cartao "ITENS NO PLANO" logo acima -
+        0% ao lado de 0/5, dois desenhos do mesmo numero na mesma tela - e
+        cobrava por isso uma coluna de 300 pixels que ficava vazia embaixo do
+        anel.
+
+        Duas representacoes do mesmo dado nao sao redundancia inofensiva: elas
+        competem pelo olho e nenhuma vence. O que faltava nesta tela nao era
+        outro grafico da cobertura; era largura para a LISTA, que e onde estao
+        os nomes que a pessoa precisa ler.
+
+        A frase que a legenda da rosca carregava - "3 na nuvem, 0 no plano de
+        hoje" - nao se perdeu: ela e importante demais e passou para o rodape
+        do cartao de itens.
     #>
     $cLista = NovoCartao
+    $cLista.Margin = '0,16,0,0'
     $spL = New-Object Windows.Controls.StackPanel
     $spL.Children.Add((NovoTexto 'O QUE ESTA NO COFRE' 11.5 $Cores.Texto2 'SemiBold')) | Out-Null
     $esp = New-Object Windows.Controls.Border; $esp.Height = 14
@@ -342,10 +316,18 @@ function TelaPainel($ambiente, $plano, $estado, $temConfig, $janela, $aoConfigur
         }
     }
 
+    # A frase da legenda da rosca vive aqui agora: quando ha copia na nuvem e
+    # o plano de hoje esta vazio, os dois numeros precisam aparecer juntos -
+    # senao um desmente o outro em silencio.
+    if ($mudou) {
+        $sepR = New-Object Windows.Controls.Border; $sepR.Height = 14
+        $spL.Children.Add($sepR) | Out-Null
+        $spL.Children.Add((NovoTexto "$enviados item(ns) na nuvem, 0 no plano de hoje" `
+            12 $Cores.Amarelo)) | Out-Null
+    }
+
     $cLista.Child = $spL
-    [Windows.Controls.Grid]::SetColumn($cLista, 1)
-    $g.Children.Add($cLista) | Out-Null
-    $sp.Children.Add($g) | Out-Null
+    $sp.Children.Add($cLista) | Out-Null
 
     # --- para onde vai ---
     <#
@@ -1022,29 +1004,85 @@ function LerTarefasAgendadas {
 #  Substitui o painel-servidor. Le os estados direto do bucket: nenhum
 #  servidor no meio, nada exposto na internet, nada para manter no ar.
 # ------------------------------------------------------------------------------
-function TelaParque($parque, $temConfig, $janela, $aoAtualizar) {
+function TelaParque($parque, $temConfig, $janela, $aoAtualizar, $aoConfigurar) {
     $sp = New-Object Windows.Controls.StackPanel
 
+    <#
+        AS TRES TELAS VAZIAS DESTA PAGINA.
+
+        Esta e a PRIMEIRA tela que o gerente ve ao abrir o programa. Antes de
+        haver cartorio publicando, ela era dois avisos e 80% de preto - e o
+        primeiro deles mandava "configure o destino" sem dar nenhum caminho
+        para configurar. Tela que manda fazer e nao deixa fazer e pior que tela
+        vazia.
+
+        Os tres estados vazios sao diferentes e cada um precisa dizer o seu:
+
+          sem acesso      - falta credencial NESTE computador
+          sem cartorio    - o acesso funciona, ninguem publicou ainda
+          erro de leitura - o acesso existe e a AWS recusou
+
+        Confundir os tres manda o gerente mexer no lugar errado.
+    #>
     if (-not $temConfig) {
-        $sp.Children.Add((FaixaVeredito 'aviso' 'Este computador ainda nao tem acesso ao Cofre' `
-            'Configure o destino na AWS para ver os cartorios.')) | Out-Null
-        $sp.Children.Add((BlocoAviso 'info' (
-            'O modo gerente le os estados que cada cartorio publica no bucket. Precisa da ' +
-            'mesma credencial da AWS, com permissao de leitura - e nao precisa de nada ' +
-            'instalado nos cartorios alem do proprio Cofre.'))) | Out-Null
+        $sp.Children.Add((FaixaVeredito 'aviso' 'Este computador ainda nao le o Cofre' `
+            'Faltam as credenciais da AWS aqui. Nada foi perdido: os cartorios continuam enviando.')) | Out-Null
+
+        $c = NovoCartao
+        $c.Margin = '0,16,0,0'
+        $in = New-Object Windows.Controls.StackPanel
+        $in.Children.Add((NovoTexto 'O QUE FALTA, E O QUE NAO FALTA' 11.5 $Cores.Texto2 'SemiBold')) | Out-Null
+        $e1 = New-Object Windows.Controls.Border; $e1.Height = 12
+        $in.Children.Add($e1) | Out-Null
+        $in.Children.Add((LinhaItem 'outro' 'Um usuario IAM so de leitura' `
+            'aws/politica-gerente.json - s3:ListBucket e s3:GetObject no bucket inteiro' 'aviso' '' '')) | Out-Null
+        $in.Children.Add((LinhaItem 'outro' 'As duas chaves neste computador' `
+            'o assistente pede no passo 3 e grava so aqui' 'aviso' '' '')) | Out-Null
+        $in.Children.Add((LinhaItem 'outro' 'NADA a instalar nos cartorios' `
+            'eles ja publicam o estado sozinhos, ao lado do backup' 'ok' '' '')) | Out-Null
+        $in.Children.Add((LinhaItem 'outro' 'NADA de servidor, dominio ou token' `
+            'esta tela le o bucket direto, sem nada no meio' 'ok' '' '')) | Out-Null
+
+        if ($aoConfigurar) {
+            $b = NovoBotao 'Configurar o acesso agora' $Icones.Nuvem $true $janela
+            $b.HorizontalAlignment = 'Left'
+            $b.Margin = '0,18,0,0'
+            $b.Add_Click({ & $aoConfigurar }.GetNewClosure())
+            $in.Children.Add($b) | Out-Null
+        }
+        $c.Child = $in
+        $sp.Children.Add($c) | Out-Null
         return $sp
     }
 
     if ($parque.Erro) {
-        $sp.Children.Add((FaixaVeredito 'erro' 'Nao consegui ler o Cofre na AWS' $parque.Erro)) | Out-Null
+        $sp.Children.Add((FaixaVeredito 'erro' 'O acesso existe, mas a AWS recusou a leitura' $parque.Erro)) | Out-Null
+        $sp.Children.Add((BlocoAviso 'aviso' (
+            'Isto NAO e falta de configuracao - as credenciais estao aqui e foram usadas. ' +
+            'O caso mais comum e a politica do usuario IAM sem s3:ListBucket no bucket inteiro. ' +
+            'Confira em aws/politica-gerente.json.'))) | Out-Null
         return $sp
     }
 
     $resumos = @($parque.Servidores | ForEach-Object { ResumirServidor $_ })
 
     if ($resumos.Count -eq 0) {
-        $sp.Children.Add((FaixaVeredito 'aviso' 'Nenhum cartorio reportou ainda' `
-            'Assim que um agente terminar uma copia, ele aparece aqui.')) | Out-Null
+        $sp.Children.Add((FaixaVeredito 'aviso' 'O Cofre respondeu, e esta vazio' `
+            'A leitura funcionou. Nenhum cartorio publicou estado ainda.')) | Out-Null
+        $c2 = NovoCartao
+        $c2.Margin = '0,16,0,0'
+        $in2 = New-Object Windows.Controls.StackPanel
+        $in2.Children.Add((NovoTexto 'O QUE FAZ UM CARTORIO APARECER AQUI' 11.5 $Cores.Texto2 'SemiBold')) | Out-Null
+        $e2 = New-Object Windows.Controls.Border; $e2.Height = 12
+        $in2.Children.Add($e2) | Out-Null
+        $in2.Children.Add((LinhaItem 'outro' '1. O Cofre instalado no servidor dele' `
+            'CH.Com-Cofre-Instalador.exe, dois cliques' 'neutro' '' '')) | Out-Null
+        $in2.Children.Add((LinhaItem 'outro' '2. O assistente concluido ate o fim' `
+            'e no passo do teste que a credencial e provada' 'neutro' '' '')) | Out-Null
+        $in2.Children.Add((LinhaItem 'outro' '3. UMA copia terminada' `
+            'o estado e publicado no fim da rodada - antes disso nao ha o que mostrar' 'neutro' '' '')) | Out-Null
+        $c2.Child = $in2
+        $sp.Children.Add($c2) | Out-Null
         return $sp
     }
 

@@ -128,7 +128,18 @@ function CartaoMetrica([char]$icone, [string]$valor, [string]$rotulo, [string]$c
     $tamanho = if ($valor.Length -le 7) { 30 }
                elseif ($valor.Length -le 11) { 24 }
                elseif ($valor.Length -le 16) { 19 } else { 16 }
-    $v = NovoTexto $valor $tamanho $Cores.Texto 'Bold'
+    <#
+        O NUMERO CARREGA A COR, E NAO SO O ICONE.
+
+        A funcao sempre recebeu a cor do estado - verde, amarelo, vermelho - e
+        pintava com ela um icone de 15 pixels no canto. O numero, que e a maior
+        coisa da tela e a unica que alguem le de longe, saia sempre branco.
+
+        Visto numa foto: "0/5 itens no plano" e "nao agendado" - as duas piores
+        noticias que este programa tem para dar - em branco, com o mesmo peso
+        de "88,85 GB enviados". A tela tinha a informacao e jogava fora.
+    #>
+    $v = NovoTexto $valor $tamanho $cor 'Bold'
     $v.Margin = '0,10,0,0'
     $v.LineHeight = $tamanho + 4
     [Windows.Controls.Grid]::SetRow($v, 1)

@@ -199,7 +199,7 @@ function Desenhar {
             $area.Children.Add((TelaParque $Ctx.Parque $temConf $janela {
                 $Ctx.Parque = $null
                 Desenhar
-            })) | Out-Null
+            } { AbrirAssistente })) | Out-Null
         }
         'painel' {
             $titulo.Text = 'Painel'
