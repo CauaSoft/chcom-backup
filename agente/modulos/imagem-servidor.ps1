@@ -64,11 +64,14 @@ function ImagemDoServidor {
         $argumentos = @('start', 'backup', "-backupTarget:$Destino", '-allCritical', '-quiet')
         if ($IncluirEstadoDoSistema) { $argumentos += '-systemState' }
 
-        $saida = & $wb @argumentos 2>&1
-        $r.Saida = ($saida | Out-String).Trim()
+        # O wbadmin escreve progresso em stderr durante horas de imagem.
+        $exec = RodarPrograma -Programa $wb -Argumentos $argumentos
+        $r.Saida = ((LinhasLimpas $exec.Tudo) -join [Environment]::NewLine)
 
-        if ($LASTEXITCODE -ne 0) {
-            throw "wbadmin terminou com codigo $LASTEXITCODE. $($r.Saida)"
+        if ($exec.Codigo -ne 0) {
+            $motivo = (LinhasLimpas $exec.Erro | Select-Object -First 2) -join ' | '
+            if (-not $motivo) { $motivo = "codigo $($exec.Codigo)" }
+            throw "o wbadmin nao conseguiu gerar a imagem: $motivo"
         }
 
         # O wbadmin cria "WindowsImageBackup\<NOME-DA-MAQUINA>" no destino.

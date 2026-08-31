@@ -572,3 +572,80 @@ function LerListaDoRclone($linhasDeSaida) {
     $itens += $bruto
     return $itens
 }
+
+<#
+    Roda QUALQUER programa externo sem confundir recado com erro.
+
+    Mesmo caso do RodarRclone, e a lista de vitimas era maior do que parecia:
+    gbak, wbadmin, robocopy e a restauracao inteira usavam 2>&1 dentro de
+    scripts com ErrorActionPreference = Stop.
+
+    Nesse arranjo, CADA LINHA que o programa escreve em stderr vira erro
+    terminante - mesmo que ele esteja apenas contando o que faz e termine com
+    codigo 0.
+
+    O gbak -v e o caso mais perigoso: ele fala enquanto trabalha. Conferido
+    com um programa que escreve "lendo tabela CLIENTES" no stderr e sai com
+    codigo 0 - do jeito antigo, morria ali. O backup do banco do cartorio
+    morreria na primeira linha de conversa.
+
+    Aqui o stderr vai para arquivo, o stdout volta limpo, e quem diz se deu
+    certo e o codigo de saida.
+#>
+function RodarPrograma {
+    param(
+        [Parameter(Mandatory)] [string]$Programa,
+        # Sem Mandatory de proposito: Mandatory recusa lista vazia, e ha
+        # programa que nao leva argumento nenhum.
+        [string[]]$Argumentos = @()
+    )
+    $err = CaminhoDe $env:TEMP ('cofre-prog-' + [Guid]::NewGuid().ToString('N') + '.err')
+    $r = [PSCustomObject]@{ Codigo = -1; Saida = @(); Erro = @(); Tudo = @() }
+
+    $antes = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        $r.Saida = @(& $Programa @Argumentos 2>$err)
+        $r.Codigo = $LASTEXITCODE
+        if (Test-Path $err) { $r.Erro = @(Get-Content $err -ErrorAction SilentlyContinue) }
+        $r.Tudo = @($r.Saida) + @($r.Erro)
+    } catch {
+        $r.Erro = @($_.Exception.Message)
+        $r.Tudo = $r.Erro
+    } finally {
+        $ErrorActionPreference = $antes
+        if (Test-Path $err) { Remove-Item $err -Force -ErrorAction SilentlyContinue }
+    }
+    return $r
+}
+
+<#
+    Tira o embrulho que o PowerShell poe em volta do stderr.
+
+    Mesmo com o redirecionamento para arquivo, o PowerShell nao grava o texto
+    cru: ele grava a REPRESENTACAO de um objeto de erro. Uma linha de gbak
+    vira sete, com CategoryInfo, FullyQualifiedErrorId, o trecho do codigo e
+    um circunflexo apontando para ele.
+
+    Nada disso ajuda quem esta no cartorio olhando a tela. O que ajuda e a
+    frase do programa - e ela e a primeira linha, depois do nome do
+    executavel.
+#>
+function LinhasLimpas($linhas) {
+    $limpas = @()
+    foreach ($l in @($linhas)) {
+        if ($null -eq $l) { continue }
+        $t = [string]$l
+        if (-not $t.Trim()) { continue }
+        if ($t.StartsWith('+')) { continue }
+        if ($t.TrimStart().StartsWith('+')) { continue }
+        if ($t.TrimStart().StartsWith('No ')) { continue }
+        if ($t -match 'CategoryInfo|FullyQualifiedErrorId|NativeCommandError|RemoteException') { continue }
+        # "gbak.exe : mensagem" -> "mensagem"
+        $sep = ' : '
+        $p = $t.IndexOf($sep)
+        if ($p -gt 0 -and $p -lt 60) { $t = $t.Substring($p + $sep.Length) }
+        $limpas += $t.Trim()
+    }
+    return $limpas
+}

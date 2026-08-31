@@ -117,11 +117,12 @@ if ($Descongelar) {
     Nota "custo      : $(if ($Rapido) { 'cerca de 0,02 USD por GB' } else { 'cerca de 0,0025 USD por GB' })"
     Write-Host ''
 
-    $saida = & $rclone backend restore "${remoto}:$Descongelar" `
-        --config $conf -o priority=$prioridade -o lifetime=7 2>&1
+    $exec = RodarRclone -Rclone $rclone -Argumentos @(
+        'backend', 'restore', "${remoto}:$Descongelar",
+        '--config', $conf, '-o', "priority=$prioridade", '-o', 'lifetime=7')
 
-    if ($LASTEXITCODE -ne 0) {
-        Erro "o pedido falhou: $(($saida | Out-String).Trim())"
+    if ($exec.Codigo -ne 0) {
+        Erro "o pedido falhou: $($exec.Erro)"
         exit 1
     }
 
@@ -174,11 +175,13 @@ if ($Baixar) {
     if (-not (Test-Path $Para)) { New-Item -ItemType Directory -Path $Para -Force | Out-Null }
 
     Passo 'baixando e decifrando...'
-    $saida = & $rclone copy "${remoto}:$Baixar" $Para --config $conf `
-        --transfers 4 --retries 10 --low-level-retries 20 --stats 10s --stats-one-line 2>&1
+    $exec = RodarRclone -Rclone $rclone -Argumentos @(
+        'copy', "${remoto}:$Baixar", $Para, '--config', $conf,
+        '--transfers', '4', '--retries', '10', '--low-level-retries', '20',
+        '--stats', '10s', '--stats-one-line') -Nivel 'INFO'
 
-    if ($LASTEXITCODE -ne 0) {
-        Erro "a copia falhou: $(($saida | Out-String).Trim())"
+    if ($exec.Codigo -ne 0) {
+        Erro "a copia falhou: $($exec.Erro)"
         Nota 'Se a mensagem falar em objeto arquivado, o descongelamento ainda nao terminou.'
         exit 1
     }

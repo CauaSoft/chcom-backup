@@ -133,9 +133,10 @@ function CopiarPasta {
         #            pode segurar a copia por meia hora
         # /NFL /NDL  sem listar cada arquivo: o log viraria centenas de MB
         # /NP        sem porcentagem, que polui o registro
-        $saida = robocopy $deOnde $Destino /E /COPY:DAT /R:2 /W:5 /NFL /NDL /NP 2>&1
-        $codigo = $LASTEXITCODE
-        $texto = ($saida | Out-String)
+        $exec = RodarPrograma -Programa 'robocopy' -Argumentos @(
+            $deOnde, $Destino, '/E', '/COPY:DAT', '/R:2', '/W:5', '/NFL', '/NDL', '/NP')
+        $codigo = $exec.Codigo
+        $texto = ((LinhasLimpas $exec.Tudo) -join [Environment]::NewLine)
 
         <#
             O codigo do robocopy nao e "zero deu certo".

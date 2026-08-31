@@ -66,11 +66,21 @@ function BackupFirebird {
         $env:ISC_USER = $Usuario
         if ($Senha) { $env:ISC_PASSWORD = $Senha }
 
-        $saida = & $Gbak -b -g -v $Banco $Destino 2>&1
-        $r.Saida = ($saida | Out-String).Trim()
+        <#
+            O gbak -v fala enquanto trabalha, e fala pelo stderr.
 
-        if ($LASTEXITCODE -ne 0) {
-            throw "gbak terminou com codigo $LASTEXITCODE. $($r.Saida)"
+            Com 2>&1 dentro de um script com ErrorActionPreference = Stop,
+            a PRIMEIRA linha de "lendo tabela CLIENTES" virava erro terminante
+            e o backup do banco morria - com o gbak trabalhando direito e
+            terminando com codigo 0.
+        #>
+        $exec = RodarPrograma -Programa $Gbak -Argumentos @('-b', '-g', '-v', $Banco, $Destino)
+        $r.Saida = ((LinhasLimpas $exec.Tudo) -join [Environment]::NewLine)
+
+        if ($exec.Codigo -ne 0) {
+            $motivo = (LinhasLimpas $exec.Erro | Select-Object -First 2) -join ' | '
+            if (-not $motivo) { $motivo = "codigo $($exec.Codigo)" }
+            throw "o gbak nao conseguiu ler o banco: $motivo"
         }
         if (-not (Test-Path $Destino)) {
             throw 'o gbak nao reclamou, mas o arquivo .fbk nao foi criado'
@@ -116,9 +126,11 @@ function ConferirFirebird {
         $env:ISC_USER = $Usuario
         if ($Senha) { $env:ISC_PASSWORD = $Senha }
 
-        $saida = & $Gbak -c -v $Arquivo $teste 2>&1
-        if ($LASTEXITCODE -ne 0) {
-            throw "a restauracao de teste falhou: $(($saida | Out-String).Trim())"
+        $exec = RodarPrograma -Programa $Gbak -Argumentos @('-c', '-v', $Arquivo, $teste)
+        if ($exec.Codigo -ne 0) {
+            $motivo = (LinhasLimpas $exec.Erro | Select-Object -First 2) -join ' | '
+            if (-not $motivo) { $motivo = "codigo $($exec.Codigo)" }
+            throw "a restauracao de teste falhou: $motivo"
         }
         if (-not (Test-Path $teste)) { throw 'a restauracao de teste nao gerou banco' }
         $r.Restaura = $true
