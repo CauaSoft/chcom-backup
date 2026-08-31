@@ -118,9 +118,19 @@ function CartaoMetrica([char]$icone, [string]$valor, [string]$rotulo, [string]$c
     [Windows.Controls.Grid]::SetRow($topo, 0)
     $g.Children.Add($topo) | Out-Null
 
-    $v = NovoTexto $valor 30 $Cores.Texto 'Bold'
+    <#
+        O TAMANHO DA LETRA SAI DO TEXTO, E NAO DO GOSTO.
+
+        Fixo em 30, "nao agendado" transbordava o cartao e invadia o vizinho -
+        visto numa foto da propria tela. Numero curto quer ser grande; frase
+        quer caber.
+    #>
+    $tamanho = if ($valor.Length -le 7) { 30 }
+               elseif ($valor.Length -le 11) { 24 }
+               elseif ($valor.Length -le 16) { 19 } else { 16 }
+    $v = NovoTexto $valor $tamanho $Cores.Texto 'Bold'
     $v.Margin = '0,10,0,0'
-    $v.LineHeight = 34
+    $v.LineHeight = $tamanho + 4
     [Windows.Controls.Grid]::SetRow($v, 1)
     $g.Children.Add($v) | Out-Null
 
@@ -724,4 +734,59 @@ function LinhaDestino([string]$caminho) {
 
     $b.Child = $g
     return $b
+}
+
+<#
+    A linha do tempo das ultimas execucoes.
+
+    Um painel de backup sem historico visivel obriga a pessoa a abrir outra
+    tela para responder a pergunta mais comum: "isso vem rodando?". Uma coluna
+    por execucao, verde quando deu tudo certo, vermelha quando alguem falhou,
+    responde isso de relance.
+
+    A altura da coluna e o VOLUME enviado, nao o tempo. Volume que despenca de
+    um dia para o outro e o sinal de que alguma coisa parou de ser copiada -
+    e esse e o defeito que ninguem percebe, porque a execucao continua
+    "terminando com sucesso".
+#>
+function LinhaDoTempo($execucoes, [double]$altura = 96) {
+    $g = New-Object Windows.Controls.Grid
+    $g.Height = $altura
+    if (@($execucoes).Count -eq 0) { return $g }
+
+    $sp = New-Object Windows.Controls.StackPanel
+    $sp.Orientation = 'Horizontal'
+    $sp.VerticalAlignment = 'Bottom'
+    $sp.HorizontalAlignment = 'Left'
+
+    $maior = 1
+    foreach ($e in $execucoes) { if ([long]$e.Bytes -gt $maior) { $maior = [long]$e.Bytes } }
+
+    foreach ($e in $execucoes) {
+        $col = New-Object Windows.Controls.StackPanel
+        $col.Margin = '0,0,6,0'
+        $col.VerticalAlignment = 'Bottom'
+
+        $fracao = [double]([long]$e.Bytes) / $maior
+        # Piso de 6 px: uma execucao que enviou quase nada ainda precisa
+        # aparecer, senao some justamente o caso que interessa olhar.
+        $h = [math]::Max(6, [math]::Round(($altura - 22) * $fracao))
+
+        $b = New-Object Windows.Controls.Border
+        $b.Width = 16
+        $b.Height = $h
+        $b.CornerRadius = '4,4,0,0'
+        $b.Background = Pincel $(if ($e.Falhou) { $Cores.Vermelho } else { $Cores.Verde })
+        $b.ToolTip = "$($e.Rotulo) - $($e.Texto)"
+        $col.Children.Add($b) | Out-Null
+
+        $d = NovoTexto $e.Dia 9.5 $Cores.Texto3
+        $d.HorizontalAlignment = 'Center'
+        $d.Margin = '0,5,0,0'
+        $col.Children.Add($d) | Out-Null
+
+        $sp.Children.Add($col) | Out-Null
+    }
+    $g.Children.Add($sp) | Out-Null
+    return $g
 }

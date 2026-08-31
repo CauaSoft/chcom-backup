@@ -76,32 +76,101 @@ function BlocoConfigurar($janela, $aoConfigurar) {
     return $b
 }
 
+<#
+    Le as ultimas execucoes para a linha do tempo.
+
+    Sai do historico gravado a cada rodada, e nao do estado atual: o estado
+    conta a ultima, o historico conta a tendencia. Volume que cai pela metade
+    de um dia para o outro e um defeito que nao se anuncia.
+#>
+function UltimasExecucoes([string]$pastaDados, [int]$quantas = 14) {
+    $lista = @()
+    $pasta = CaminhoDe $pastaDados 'historico'
+    if (-not (Test-Path $pasta)) { return $lista }
+
+    $arquivos = @(Get-ChildItem $pasta -Filter '*.json' -File -ErrorAction SilentlyContinue |
+                  Sort-Object Name -Descending | Select-Object -First $quantas)
+    # Ordem cronologica na tela: o mais antigo a esquerda, como qualquer
+    # grafico de tempo. A leitura acima e do mais novo para pegar os N ultimos.
+    [array]::Reverse($arquivos)
+
+    foreach ($f in $arquivos) {
+        $e = $null
+        try { $e = (Get-Content $f.FullName -Raw -Encoding UTF8 | ConvertFrom-Json) } catch { continue }
+        if (-not $e) { continue }
+        $bytes = 0
+        foreach ($d in @($e.Detalhes)) { if ($d.Sucesso) { $bytes += [long]$d.Bytes } }
+        $q = DataOuNada $e.Terminou
+        $lista += [PSCustomObject]@{
+            Bytes  = $bytes
+            Falhou = ([int]$e.Falhas -gt 0)
+            Dia    = $(if ($q) { $q.ToString('dd/MM') } else { '?' })
+            Rotulo = $(if ($q) { $q.ToString('dd/MM/yyyy HH:mm') } else { 'sem data' })
+            Texto  = "$($e.Sucessos) enviado(s), $($e.Falhas) falha(s), $(Tamanho $bytes)"
+        }
+    }
+    return $lista
+}
+
+<#
+    Quando o Agendador vai rodar de novo.
+
+    Um painel que nao responde isso obriga a abrir o Agendador de Tarefas do
+    Windows para saber se o backup de hoje a noite vai acontecer.
+#>
+function ProximaExecucao {
+    $proxima = $null
+    foreach ($t in @(LerTarefasAgendadas)) {
+        if ($t.Quando -match '(\d{2}/\d{2}/\d{4} \d{2}:\d{2})') {
+            $d = DataOuNada $Matches[1]
+            if ($d -and (-not $proxima -or $d -lt $proxima)) { $proxima = $d }
+        }
+    }
+    return $proxima
+}
+
 function TelaPainel($ambiente, $plano, $estado, $temConfig, $janela, $aoConfigurar) {
     $sp = New-Object Windows.Controls.StackPanel
 
-    # Sem configuracao, o veredito da lugar ao convite para configurar: dizer
-    # "nao protegido" sem oferecer o caminho e so dar a noticia ruim.
     if (-not $temConfig) {
         $sp.Children.Add((BlocoConfigurar $janela $aoConfigurar)) | Out-Null
     }
 
-    # --- veredito ---
-    # Primeiro motivo da lista, quando houver. Escrito em duas linhas de
-    # proposito: indexar o resultado de uma expressao entre parenteses exige
-    # que nao haja espaco antes do colchete, e isso e um erro facil de fazer
-    # e chato de achar.
+    <#
+        O PLANO E O ESTADO PODEM DISCORDAR - E ISSO E A NOTICIA.
+
+        Visto numa foto da propria tela: os cartoes diziam "ultima copia ha 9h"
+        e "88,85 GB enviados", e ao lado a rosca dizia "0% protegido, 0 de 5
+        itens". As duas coisas eram verdade e juntas nao queriam dizer nada.
+
+        Acontece quando o servidor MUDA depois do backup: o disco E: sumiu, o
+        usuario perdeu a permissao do Hyper-V, a pasta foi renomeada. O backup
+        de ontem existe; o plano de hoje nao encontra mais nada.
+
+        Esse e o caso mais perigoso que existe neste programa, porque parece
+        saudavel de longe. Entao ele ganhou nome e vem antes de tudo.
+    #>
+    $enviouAntes = ($estado -and [int]$estado.Sucessos -gt 0)
+    $planoVazio  = ($plano.Tarefas.Count -eq 0)
+    $mudou = ($enviouAntes -and $planoVazio)
+
     $primeiroProblema = ''
     if ($plano.NaoProtegido.Count -gt 0) { $primeiroProblema = $plano.NaoProtegido[0] }
     $primeiroAviso = ''
     if ($plano.Avisos.Count -gt 0) { $primeiroAviso = $plano.Avisos[0] }
 
-    if ($plano.NaoProtegido.Count -gt 0 -or $plano.Tarefas.Count -eq 0) {
+    if ($mudou) {
+        $sp.Children.Add((FaixaVeredito 'erro' 'O servidor mudou desde a ultima copia' (
+            'Ha backup na nuvem, mas HOJE nao ha nada sendo protegido aqui. ' +
+            'O que estava configurado nao existe mais neste servidor - veja a lista abaixo. ' +
+            'Enquanto isso nao for resolvido, o backup esta parado no tempo.'))) | Out-Null
+    } elseif ($plano.NaoProtegido.Count -gt 0 -or $planoVazio) {
         $sp.Children.Add((FaixaVeredito 'erro' 'Este servidor nao esta protegido' `
             $primeiroProblema)) | Out-Null
     } elseif (-not $estado) {
         $sp.Children.Add((FaixaVeredito 'aviso' 'Nenhuma copia foi enviada ainda' `
             'O plano esta pronto. Va em "Executar agora" para a primeira copia.')) | Out-Null
-    } elseif ($estado.Falhas -gt 0) {
+    } elseif ([int]$estado.Falhas -gt 0) {
         $sp.Children.Add((FaixaVeredito 'erro' "$($estado.Falhas) item(ns) falharam na ultima copia" `
             "$($estado.Sucessos) enviado(s) com sucesso. Veja o Historico.")) | Out-Null
     } elseif ($plano.Avisos.Count -gt 0) {
@@ -112,39 +181,85 @@ function TelaPainel($ambiente, $plano, $estado, $temConfig, $janela, $aoConfigur
     }
 
     # --- metricas ---
-    $qtdVM = @($plano.Tarefas | Where-Object { $_.Tipo -eq 'vm' }).Count
-    $qtdBanco = @($plano.Tarefas | Where-Object { $_.Tipo -in @('firebird','sqlserver') }).Count
     <#
-        $estado existir NAO significa que a copia terminou.
+        Os quatro cartoes respondem quatro perguntas diferentes.
 
-        Enquanto o motor trabalha, Terminou fica nulo - e [datetime]$null
-        estoura. Estourando aqui, dentro do desenho, a janela inteira morre:
-        era assim que a tela sumia quando alguem mandava fazer backup.
+        Antes, dois deles contavam maquinas virtuais e bancos - numeros que
+        num cartorio sem Hyper-V sao "0" e "0" para sempre, ocupando metade da
+        faixa mais visivel da tela para nao dizer nada.
+
+        Agora: quando foi, quanto do plano esta coberto, quando volta a rodar,
+        e quanto subiu. Nenhum deles fica parado em zero por natureza.
     #>
     $q = DataOuNada $(if ($estado) { $estado.Terminou } else { $null })
+    $bytesUltima = 0
+    if ($estado) { foreach ($d in @($estado.Detalhes)) { if ($d.Sucesso) { $bytesUltima += [long]$d.Bytes } } }
+
     if ($q) {
         $horas = ((Get-Date) - $q).TotalHours
         $quando = if ($horas -lt 24) { "ha $([int]$horas) h" } else { "ha $([int]($horas/24)) dias" }
-        $corQ = if ($horas -le 24*35) { $Cores.Verde } elseif ($horas -le 24*60) { $Cores.Amarelo } else { $Cores.Vermelho }
+        $corQ = if ($mudou) { $Cores.Vermelho }
+                elseif ($horas -le 24*35) { $Cores.Verde }
+                elseif ($horas -le 24*60) { $Cores.Amarelo } else { $Cores.Vermelho }
         $dataQ = $q.ToString('dd/MM HH:mm')
-        $bytes = 0
-        foreach ($d in @($estado.Detalhes)) { if ($d.Sucesso) { $bytes += [long]$d.Bytes } }
-        $volume = Tamanho $bytes
+        $volume = Tamanho $bytesUltima
     } elseif ($estado -and $estado.Rodando) {
-        $quando = 'agora'; $corQ = $Cores.Azul; $dataQ = 'copia em andamento'
-        $bytes = 0
-        foreach ($d in @($estado.Detalhes)) { if ($d.Sucesso) { $bytes += [long]$d.Bytes } }
-        $volume = Tamanho $bytes
+        $quando = 'agora'; $corQ = $Cores.Azul; $dataQ = 'copia em andamento'; $volume = Tamanho $bytesUltima
     } else {
         $quando = 'nunca'; $corQ = $Cores.Vermelho; $dataQ = 'nenhuma copia'; $volume = '-'
     }
 
+    $totalItens = $plano.Tarefas.Count + $plano.NaoProtegido.Count
+    $enviados = 0
+    if ($estado) { $enviados = [int]$estado.Sucessos }
+    $corCob = if ($plano.NaoProtegido.Count -gt 0) { $Cores.Vermelho }
+              elseif ($plano.Avisos.Count -gt 0) { $Cores.Amarelo } else { $Cores.Verde }
+
+    $prox = ProximaExecucao
+    if ($prox) {
+        $faltam = ($prox - (Get-Date)).TotalHours
+        $txtProx = if ($faltam -lt 1) { 'em minutos' }
+                   elseif ($faltam -lt 24) { "em $([int]$faltam) h" }
+                   else { "em $([int]($faltam/24)) dias" }
+        $rodapeProx = $prox.ToString('dd/MM HH:mm')
+        $corProx = $Cores.Azul
+    } else {
+        $txtProx = 'nao agendado'
+        $rodapeProx = 'o backup nao roda sozinho'
+        $corProx = $Cores.Vermelho
+    }
+
     $sp.Children.Add((GradeDeCartoes @(
-        (CartaoMetrica $Icones.Relogio  $quando 'ULTIMA COPIA'      $corQ        $dataQ)
-        (CartaoMetrica $Icones.Maquina  "$qtdVM" 'MAQUINAS VIRTUAIS' $Cores.Azul  $(if ($qtdVM) { 'copia mensal' } else { 'nenhuma neste servidor' }))
-        (CartaoMetrica $Icones.Banco    "$qtdBanco" 'BANCOS DE DADOS' $Cores.Azul $(if ($qtdBanco) { 'copia diaria' } else { 'nenhum neste servidor' }))
-        (CartaoMetrica $Icones.Nuvem    $volume 'ENVIADO NA ULTIMA' $Cores.Verde 'S3 Glacier Deep Archive')
+        (CartaoMetrica $Icones.Relogio $quando 'ULTIMA COPIA' $corQ $dataQ)
+        (CartaoMetrica $Icones.Escudo "$($plano.Tarefas.Count)/$totalItens" 'ITENS NO PLANO' $corCob `
+            $(if ($plano.NaoProtegido.Count -gt 0) { "$($plano.NaoProtegido.Count) fora do alcance" } else { 'tudo o que existe aqui' }))
+        (CartaoMetrica $Icones.Play $txtProx 'PROXIMA COPIA' $corProx $rodapeProx)
+        (CartaoMetrica $Icones.Nuvem $volume 'ENVIADO NA ULTIMA' $Cores.Verde 'S3 Glacier Deep Archive')
     ) 4)) | Out-Null
+
+    # --- linha do tempo ---
+    <#
+        Preenchia-se metade da tela com preto e a pergunta mais comum ficava
+        sem resposta: "isso vem rodando?". Uma coluna por execucao responde de
+        relance, e a ALTURA e o volume - porque volume que despenca e o
+        defeito que nao se anuncia, ja que a execucao continua "com sucesso".
+    #>
+    $execs = UltimasExecucoes $dados
+    if ($execs.Count -gt 0) {
+        $cT = NovoCartao
+        $inT = New-Object Windows.Controls.StackPanel
+        $comFalha = @($execs | Where-Object { $_.Falhou }).Count
+        $subT = if ($comFalha -gt 0) { "$comFalha das ultimas $($execs.Count) com falha" }
+                else { "as ultimas $($execs.Count) rodaram limpas" }
+        $inT.Children.Add((NovoTexto 'ULTIMAS EXECUCOES' 11.5 $Cores.Texto2 'SemiBold')) | Out-Null
+        $sT = NovoTexto "altura = volume enviado  -  $subT" 12 $Cores.Texto3
+        $sT.Margin = '0,4,0,10'
+        $inT.Children.Add($sT) | Out-Null
+        $inT.Children.Add((LinhaDoTempo $execs)) | Out-Null
+        $cT.Child = $inT
+        $cT.Margin = '0,16,0,0'
+        $sp.Children.Add($cT) | Out-Null
+    }
 
     # --- proporcao protegida + itens ---
     $g = New-Object Windows.Controls.Grid
@@ -154,31 +269,43 @@ function TelaPainel($ambiente, $plano, $estado, $temConfig, $janela, $aoConfigur
     $g.ColumnDefinitions.Add($ca) | Out-Null
     $g.ColumnDefinitions.Add($cb) | Out-Null
 
-    # rosca
     $cRosca = NovoCartao
     $cRosca.Margin = '0,0,14,0'
     $spR = New-Object Windows.Controls.StackPanel
     $spR.Children.Add((NovoTexto 'COBERTURA' 11.5 $Cores.Texto2 'SemiBold')) | Out-Null
 
-    $totalItens = $plano.Tarefas.Count + $plano.NaoProtegido.Count
     $fracao = if ($totalItens -gt 0) { $plano.Tarefas.Count / $totalItens } else { 0 }
-    $corR = if ($plano.NaoProtegido.Count -gt 0) { $Cores.Vermelho }
-            elseif ($plano.Avisos.Count -gt 0) { $Cores.Amarelo } else { $Cores.Verde }
-
-    $rosca = Rosca $fracao $corR ("{0:N0}%" -f ($fracao * 100)) 'protegido'
+    $rosca = Rosca $fracao $corCob ("{0:N0}%" -f ($fracao * 100)) 'protegido'
     $rosca.Margin = '0,16,0,10'
     $rosca.HorizontalAlignment = 'Center'
     $spR.Children.Add($rosca) | Out-Null
 
-    $legenda = NovoTexto "$($plano.Tarefas.Count) de $totalItens itens no Cofre" 12 $Cores.Texto3
-    $legenda.HorizontalAlignment = 'Center'
-    $spR.Children.Add($legenda) | Out-Null
+    <#
+        A legenda diz o que a rosca NAO diz.
+
+        "0 de 5 itens no Cofre" parecia contar o que subiu; conta o que o plano
+        alcanca. Quando ha copia na nuvem e o plano esta vazio, os dois numeros
+        precisam aparecer juntos - senao um desmente o outro em silencio.
+    #>
+    $leg = if ($mudou) { "$enviados item(ns) na nuvem, 0 no plano de hoje" }
+           else { "$($plano.Tarefas.Count) de $totalItens itens alcancados" }
+    $lg = NovoTexto $leg 12 $Cores.Texto3
+    $lg.HorizontalAlignment = 'Center'
+    $lg.TextAlignment = 'Center'
+    $spR.Children.Add($lg) | Out-Null
 
     $cRosca.Child = $spR
     [Windows.Controls.Grid]::SetColumn($cRosca, 0)
     $g.Children.Add($cRosca) | Out-Null
 
-    # lista
+    # --- o que esta no cofre ---
+    <#
+        O titulo dizia "O QUE ESTA NO COFRE" e a lista trazia os MOTIVOS pelos
+        quais nada estava. Titulo que mente e pior que cartao vazio.
+
+        Agora sao duas listas separadas: o que esta protegido, e o que ficou
+        de fora. Cada uma com o seu nome.
+    #>
     $cLista = NovoCartao
     $spL = New-Object Windows.Controls.StackPanel
     $spL.Children.Add((NovoTexto 'O QUE ESTA NO COFRE' 11.5 $Cores.Texto2 'SemiBold')) | Out-Null
@@ -186,21 +313,12 @@ function TelaPainel($ambiente, $plano, $estado, $temConfig, $janela, $aoConfigur
     $spL.Children.Add($esp) | Out-Null
 
     if ($plano.Tarefas.Count -eq 0) {
-        # "Nada foi identificado" e mentira quando existem itens NAO
-        # PROTEGIDOS: eles foram identificados - e e justamente por isso que a
-        # rosca ao lado diz "0 de 2". Visto num teste real, o texto e o numero
-        # contavam historias diferentes na mesma tela.
-        if ($plano.NaoProtegido.Count -gt 0) {
-            $spL.Children.Add((NovoTexto ('Nada esta sendo enviado. Isto foi encontrado neste ' +
-                'servidor, mas nao pode ser protegido:') 13 $Cores.Texto3)) | Out-Null
-            foreach ($np in $plano.NaoProtegido) {
-                $li = NovoTexto ('- ' + $np) 12.5 $Cores.Texto3
-                $li.Margin = '0,8,0,0'
-                $spL.Children.Add($li) | Out-Null
-            }
+        $vazio = if ($mudou) {
+            'Nada esta sendo protegido HOJE. O que ja subiu continua na nuvem e pode ser restaurado, mas nao esta mais sendo atualizado.'
         } else {
-            $spL.Children.Add((NovoTexto 'Nada foi identificado para proteger neste servidor.' 13 $Cores.Texto3)) | Out-Null
+            'Nada foi identificado para proteger neste servidor.'
         }
+        $spL.Children.Add((NovoTexto $vazio 13 $Cores.Texto3)) | Out-Null
     }
     foreach ($t in $plano.Tarefas) {
         $ult = $null
@@ -213,11 +331,45 @@ function TelaPainel($ambiente, $plano, $estado, $temConfig, $janela, $aoConfigur
         $spL.Children.Add((LinhaItem $t.Tipo $t.Nome $t.Porque $est $qd $tm)) | Out-Null
     }
 
+    if ($plano.NaoProtegido.Count -gt 0) {
+        $sepF = New-Object Windows.Controls.Border; $sepF.Height = 18
+        $spL.Children.Add($sepF) | Out-Null
+        $spL.Children.Add((NovoTexto 'FORA DO ALCANCE' 11.5 $Cores.Vermelho 'SemiBold')) | Out-Null
+        foreach ($np in $plano.NaoProtegido) {
+            $li = NovoTexto ('- ' + $np) 12.5 $Cores.Texto3
+            $li.Margin = '0,8,0,0'
+            $spL.Children.Add($li) | Out-Null
+        }
+    }
+
     $cLista.Child = $spL
     [Windows.Controls.Grid]::SetColumn($cLista, 1)
     $g.Children.Add($cLista) | Out-Null
-
     $sp.Children.Add($g) | Out-Null
+
+    # --- para onde vai ---
+    <#
+        A pergunta "para onde isso esta indo?" exigia trocar de tela. Sao tres
+        dados que cabem numa linha, e sem eles o painel fala de backup sem
+        dizer onde ele esta.
+    #>
+    $cfgP = LerConfiguracao (CaminhoDe $dados 'cofre.conf')
+    if ($cfgP) {
+        $cD = NovoCartao
+        $cD.Margin = '0,16,0,0'
+        $inD = New-Object Windows.Controls.StackPanel
+        $inD.Children.Add((NovoTexto 'PARA ONDE VAI' 11.5 $Cores.Texto2 'SemiBold')) | Out-Null
+        $temChave = Test-Path (CaminhoDe $dados 'rclone.conf')
+        $inD.Children.Add((LinhaInfo 'Cartorio'  ([string]$cfgP.Cartorio))) | Out-Null
+        $inD.Children.Add((LinhaInfo 'Servidor'  ([string]$ambiente.Maquina))) | Out-Null
+        $inD.Children.Add((LinhaInfo 'Bucket'    "$($cfgP.Bucket)  ($($cfgP.Regiao))")) | Out-Null
+        $inD.Children.Add((LinhaInfo 'Classe'    'S3 Glacier Deep Archive')) | Out-Null
+        $inD.Children.Add((LinhaInfo 'Chave'     $(if ($temChave) { 'configurada neste servidor' } else { 'NAO CONFIGURADA - nada sai daqui' }) `
+            $(if ($temChave) { $Cores.Verde } else { $Cores.Vermelho }))) | Out-Null
+        $cD.Child = $inD
+        $sp.Children.Add($cD) | Out-Null
+    }
+
     return $sp
 }
 
@@ -488,10 +640,21 @@ function TelaHistorico($raiz) {
         return $sp
     }
 
-    $ok = @($execucoes | Where-Object { $_.Resultado -eq 'sucesso' }).Count
-    $sp.Children.Add((FaixaVeredito $(if ($ok -eq $execucoes.Count) { 'ok' } else { 'aviso' }) `
-        "$ok de $($execucoes.Count) execucoes sem falha" 'As 40 execucoes mais recentes.')) | Out-Null
+    <#
+        O banner conta o que a lista conta.
 
+        Ele contava por 'Resultado', que e um campo separado; a lista conta por
+        'Falhas'. Um registro sem Resultado - execucao interrompida, arquivo de
+        versao antiga - fazia o banner dizer "0 de 12 sem falha" em laranja
+        com doze linhas verdes logo abaixo.
+
+        Mesmo defeito do Painel: dois numeros verdadeiros que juntos nao
+        querem dizer nada. Aqui os dois passam a sair da mesma fonte.
+    #>
+    $ok = @($execucoes | Where-Object { [int]$_.Falhas -eq 0 }).Count
+    $sp.Children.Add((FaixaVeredito $(if ($ok -eq $execucoes.Count) { 'ok' } else { 'aviso' }) `
+        "$ok de $($execucoes.Count) execucoes sem falha" `
+        "As $($execucoes.Count) mais recentes.")) | Out-Null
     $c = NovoCartao
     $inner = New-Object Windows.Controls.StackPanel
     foreach ($e in $execucoes) {

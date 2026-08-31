@@ -61,6 +61,39 @@ function Start-Process {
 }
 
 <#
+    As caixas de dialogo do Windows viram dubles.
+
+    Sem isto, "Escolher uma pasta" abre a janela DE VERDADE na tela de quem
+    esta rodando a prova - e a prova fica esperando um clique humano ate o
+    relogio de 120 segundos matar tudo. Aconteceu: um splice descuidado apagou
+    este trecho e o travamento voltou, agora abrindo janelas na cara de quem
+    trabalhava na maquina.
+
+    A pasta devolvida e PEQUENA e nossa. Devolvendo %TEMP%, o assistente faria
+    o que faz com qualquer pasta escolhida - medir arquivo por arquivo,
+    recursivamente - e uma pasta temporaria com dezenas de milhares de
+    arquivos passa dos 120 segundos sozinha.
+
+    O resto do New-Object continua indo para o original: a interface inteira e
+    construida com ele.
+#>
+function New-Object {
+    $tipo = if ("$($args[0])" -eq '-TypeName') { "$($args[1])" } else { "$($args[0])" }
+    if ($tipo -match 'FolderBrowserDialog|OpenFileDialog|SaveFileDialog') {
+        $pastinha = Join-Path $env:TEMP 'cofre-prova-pasta'
+        if (-not (Test-Path $pastinha)) {
+            & 'Microsoft.PowerShell.Management\New-Item' -ItemType Directory -Path $pastinha -Force | Out-Null
+        }
+        $d = [pscustomobject]@{
+            Description = ''; SelectedPath = $pastinha; ShowNewFolderButton = $false
+            FileName = (Join-Path $pastinha 'prova.txt'); Filter = ''; Title = ''
+        }
+        return ($d | Add-Member -Name ShowDialog -MemberType ScriptMethod -Value { 'OK' } -PassThru)
+    }
+    & 'Microsoft.PowerShell.Utility\New-Object' @args
+}
+
+<#
     Andar pela arvore LOGICA.
 
     Tudo o que este programa constroi - cada botao, cada caixa - e filho
