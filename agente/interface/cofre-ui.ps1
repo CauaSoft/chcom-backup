@@ -30,6 +30,7 @@ $raiz = Split-Path -Parent $aqui
 . (Join-Path $raiz 'modulos\comum.ps1')
 . (Join-Path $raiz 'modulos\descobrir.ps1')
 . (Join-Path $raiz 'modulos\planejar.ps1')
+. (Join-Path $raiz 'modulos\conferir-nuvem.ps1')
 . (Join-Path $raiz 'modulos\configurar.ps1')
 . (Join-Path $raiz 'modulos\enviar.ps1')
 . (Join-Path $raiz 'modulos\gerente.ps1')
@@ -210,7 +211,31 @@ function Desenhar {
         'protegido' {
             $titulo.Text = 'O que e protegido'
             $subtitulo.Text = 'Detectado automaticamente neste servidor'
-            $area.Children.Add((TelaProtegido $Ctx.Ambiente $Ctx.Plano $estado)) | Out-Null
+            $area.Children.Add((TelaProtegido $Ctx.Ambiente $Ctx.Plano $estado `
+                $Ctx.Nuvem $janela {
+                    <#
+                        A leitura fica GUARDADA entre trocas de tela: cada
+                        conferencia e uma ida a AWS, e refazer a cada clique no
+                        menu gastaria requisicao a toa. O botao "Conferir de
+                        novo" e quem forca.
+                    #>
+                    $janela.Cursor = [Windows.Input.Cursors]::Wait
+                    $janela.Dispatcher.Invoke([action]{}, [Windows.Threading.DispatcherPriority]::Render)
+                    try {
+                        $cfg = LerConfiguracao (CaminhoDe $dados 'cofre.conf')
+                        $rcl = CaminhoDoRclone $raiz
+                        $arq = CaminhoDe $dados 'rclone.conf'
+                        if (-not $cfg -or -not $rcl -or -not (Test-Path $arq)) {
+                            $Ctx.Nuvem = [PSCustomObject]@{ Itens=@(); Erro='este servidor ainda nao tem destino configurado.'; TotalBytes=0; Lidos=0 }
+                        } else {
+                            $Ctx.Nuvem = ConferirNaNuvem -Rclone $rcl -Config $arq `
+                                -Cartorio (NomeParaDestino $cfg.Cartorio) -Plano $Ctx.Plano `
+                                -Servidor (NomeParaDestino $Ctx.Ambiente.Maquina) `
+                                -Remoto $(if ($cfg.Remoto) { $cfg.Remoto } else { 'cofre' })
+                        }
+                    } finally { $janela.Cursor = $null }
+                    Desenhar
+                })) | Out-Null
         }
         'executar' {
             $titulo.Text = 'Executar agora'

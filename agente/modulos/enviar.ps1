@@ -97,6 +97,33 @@ function EnviarPasta {
             '--transfers', $ajuste.Arquivos
             '--s3-upload-concurrency', $ajuste.Pedacos
             '--s3-chunk-size', ("$($ajuste.PedacoMB)M")
+            <#
+                LER O ARQUIVO DUAS VEZES ANTES DE COMECAR A SUBIR.
+
+                Por padrao o rclone calcula o MD5 do arquivo INTEIRO antes de
+                enviar, para gravar junto do objeto. Numa VM exportada de 21 GB
+                isso significa ler 21 GB do disco antes de o primeiro byte sair
+                para a rede - com o link parado esse tempo todo.
+
+                Desligar nao deixa o backup sem defesa: a criptografia do rclone
+                autentica CADA BLOCO de 64 KB com Poly1305. Se um byte chegar
+                trocado, a restauracao acusa - e acusa dizendo qual arquivo. O
+                MD5 no metadado seria uma segunda conferencia da mesma coisa,
+                paga com um passeio inteiro pelo disco.
+            #>
+            '--s3-disable-checksum'
+            <#
+                Sem esta linha o rclone faz um HeadBucket antes de cada envio.
+
+                Sao dois problemas num: um ida e volta a toa por transferencia,
+                e uma chamada NO NIVEL DO BUCKET - que a politica do cartorio
+                nao concede de proposito, porque ela e restrita ao prefixo. O
+                envio falharia por permissao sem ter nada de errado.
+            #>
+            '--s3-no-check-bucket'
+            # Comparar o que ja existe la e barato e paralelo. Numa pasta de
+            # banco com milhares de arquivos, e isto que decide o tempo.
+            '--checkers', '16'
             '--stats', '5s'
             '--stats-one-line'
             # Link de cartorio cai. Retomar e regra, nao excecao.

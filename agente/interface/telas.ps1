@@ -224,7 +224,7 @@ function TelaPainel($ambiente, $plano, $estado, $temConfig, $janela, $aoConfigur
 # ------------------------------------------------------------------------------
 #  O QUE E PROTEGIDO
 # ------------------------------------------------------------------------------
-function TelaProtegido($ambiente, $plano, $estado) {
+function TelaProtegido($ambiente, $plano, $estado, $nuvem, $janela, $aoConferir) {
     $sp = New-Object Windows.Controls.StackPanel
 
     $sp.Children.Add((FaixaVeredito 'info' "Estrategia: $($plano.Estrategia)" `
@@ -305,6 +305,66 @@ function TelaProtegido($ambiente, $plano, $estado) {
     $c.Child = $inner
     $sp.Children.Add($c) | Out-Null
 
+
+    <#
+        A CONFERENCIA CONTRA A NUVEM.
+
+        O resto desta tela mostra o que o programa PLANEJA proteger e o que
+        ele ACHA que enviou - tudo lido do proprio estado.json. Se o agente
+        errar, ele erra nos dois lugares ao mesmo tempo e ninguem descobre.
+
+        Este bloco pergunta para a AWS. E a unica parte do programa que nao
+        acredita no proprio relatorio.
+
+        Listar nao custa resgate: nome, tamanho e data vem do indice, e o
+        objeto continua congelado. Da para conferir todo dia de graca.
+    #>
+    $sp.Children.Add((Secao 'Conferido na nuvem' 'Lido da AWS, e nao do relatorio deste programa')) | Out-Null
+    $cN = NovoCartao
+    $inN = New-Object Windows.Controls.StackPanel
+
+    if ($null -eq $nuvem) {
+        $inN.Children.Add((NovoTexto (
+            'Ainda nao conferi. O botao abaixo le o bucket e compara, item por item, ' +
+            'com o que deveria estar la.') 13 $Cores.Texto2)) | Out-Null
+        $bN = NovoBotao 'Conferir na nuvem agora' $Icones.Nuvem $true $janela
+        $bN.HorizontalAlignment = 'Left'
+        $bN.Margin = '0,14,0,0'
+        $bN.Add_Click({ & $aoConferir }.GetNewClosure())
+        $inN.Children.Add($bN) | Out-Null
+
+    } elseif ($nuvem.Erro) {
+        $inN.Children.Add((NovoTexto ('Nao consegui ler o Cofre na AWS: ' + $nuvem.Erro) 13 $Cores.Vermelho)) | Out-Null
+        $bN = NovoBotao 'Tentar de novo' $Icones.Nuvem $false $janela
+        $bN.HorizontalAlignment = 'Left'
+        $bN.Margin = '0,14,0,0'
+        $bN.Add_Click({ & $aoConferir }.GetNewClosure())
+        $inN.Children.Add($bN) | Out-Null
+
+    } else {
+        $ruins = @($nuvem.Itens | Where-Object { $_.Estado -ne 'ok' }).Count
+        $vered = if ($ruins -eq 0) {
+            "tudo o que deveria estar la esta la - $($nuvem.Lidos) arquivo(s), $(Tamanho $nuvem.TotalBytes)"
+        } else {
+            "$ruins item(ns) precisam de atencao - $($nuvem.Lidos) arquivo(s) na nuvem, $(Tamanho $nuvem.TotalBytes)"
+        }
+        $inN.Children.Add((NovoTexto $vered 13 $(if ($ruins -eq 0) { $Cores.Verde } else { $Cores.Amarelo }) 'SemiBold')) | Out-Null
+
+        foreach ($i in $nuvem.Itens) {
+            $rot = if ($i.UltimaData) { $i.UltimaData } else { '' }
+            $tam = if ($i.Bytes -gt 0) { Tamanho $i.Bytes } else { '' }
+            $inN.Children.Add((LinhaItem $i.Tipo "$($i.Disco) / $($i.Nome)" $i.Frase $i.Estado $rot $tam)) | Out-Null
+        }
+
+        $bN = NovoBotao 'Conferir de novo' $Icones.Nuvem $false $janela
+        $bN.HorizontalAlignment = 'Left'
+        $bN.Margin = '0,16,0,0'
+        $bN.Add_Click({ & $aoConferir }.GetNewClosure())
+        $inN.Children.Add($bN) | Out-Null
+    }
+
+    $cN.Child = $inN
+    $sp.Children.Add($cN) | Out-Null
     return $sp
 }
 

@@ -61,46 +61,46 @@ function Start-Process {
 }
 
 <#
-    New-Object precisa continuar funcionando: a interface inteira e construida
-    com ele. So as caixas de dialogo do Windows sao trocadas - senao a prova
-    para numa janela esperando alguem clicar, e nunca termina.
+    Andar pela arvore LOGICA.
+
+    Tudo o que este programa constroi - cada botao, cada caixa - e filho
+    logico do painel onde foi colocado. A arvore VISUAL tem tudo isso mais o
+    recheio dos controles do proprio Windows: as setas da barra de rolagem, o
+    fundo do botao, o cursor da caixa de texto.
+
+    Andar pela visual parecia mais completo e era pior nos dois sentidos: numa
+    tela a prova nao achava o botao de verdade, e em outra ela clicou numa
+    seta de barra de rolagem - um RepeatButton, que fica repetindo enquanto
+    esta pressionado - e travou os 120 segundos inteiros.
+
+    Aqui a regra e simples: so o que este programa criou.
 #>
-function New-Object {
-    $tipo = if ("$($args[0])" -eq '-TypeName') { "$($args[1])" } else { "$($args[0])" }
-    if ($tipo -match 'FolderBrowserDialog|OpenFileDialog|SaveFileDialog') {
-        $d = [pscustomobject]@{
-            Description = ''; SelectedPath = $env:TEMP; ShowNewFolderButton = $false
-            FileName = (Join-Path $env:TEMP 'prova.txt'); Filter = ''; Title = ''
-        }
-        return ($d | Add-Member -Name ShowDialog -MemberType ScriptMethod -Value { 'OK' } -PassThru)
-    }
-    & 'Microsoft.PowerShell.Utility\New-Object' @args
-}
-
-# ------------------------------------------------------------------------------
-#  Andar pela arvore da janela
-# ------------------------------------------------------------------------------
-function TodosOsFilhos($no) {
+function TodosOsFilhos($no, $vistos = $null) {
     if ($null -eq $no) { return }
+    if ($null -eq $vistos) { $vistos = New-Object 'System.Collections.Generic.HashSet[int]' }
+    $id = [Runtime.CompilerServices.RuntimeHelpers]::GetHashCode($no)
+    if (-not $vistos.Add($id)) { return }
     $no
-    $qtd = [Windows.Media.VisualTreeHelper]::GetChildrenCount($no)
-    if ($qtd -eq 0) {
-        # Antes de medir, a arvore visual esta vazia: e preciso andar pela
-        # arvore LOGICA, senao a prova acha zero botao e passa achando que
-        # esta tudo bem.
+
+    try {
         foreach ($f in [Windows.LogicalTreeHelper]::GetChildren($no)) {
-            if ($f -is [Windows.DependencyObject]) { TodosOsFilhos $f }
+            if ($f -is [Windows.DependencyObject]) { TodosOsFilhos $f $vistos }
         }
-        return
-    }
-    for ($i = 0; $i -lt $qtd; $i++) {
-        TodosOsFilhos ([Windows.Media.VisualTreeHelper]::GetChild($no, $i))
-    }
+    } catch { }
 }
 
+<#
+    O que uma pessoa clica.
+
+    Botao, caixa de selecao e item de menu. Fora dessa lista fica o recheio
+    dos controles - RepeatButton de barra de rolagem, seta de lista - que
+    ninguem clica de proposito e que ja travou a prova uma vez.
+#>
 function Clicaveis($raizVisual) {
     @(TodosOsFilhos $raizVisual | Where-Object {
-        $_ -is [Windows.Controls.Primitives.ButtonBase]
+        $_ -is [Windows.Controls.Button] -or
+        $_ -is [Windows.Controls.CheckBox] -or
+        $_ -is [Windows.Controls.RadioButton]
     })
 }
 
@@ -200,7 +200,7 @@ function LimparCenario([string]$pastaDados) {
 function RodarFilho([string]$cenario, [string]$scriptPath, [int]$segundos = 120) {
     $log = Join-Path $env:TEMP "cofre-prova-$cenario.txt"
     $err = Join-Path $env:TEMP "cofre-prova-$cenario.err"
-    foreach ($a in @($log, $err)) { if (Test-Path $a) { Remove-Item $a -Force } }
+    foreach ($a in @($log, $err)) { if (Test-Path $a) { Remove-Item $a -Force -ErrorAction SilentlyContinue } }
 
     $p = Microsoft.PowerShell.Management\Start-Process powershell -PassThru -WindowStyle Hidden `
         -RedirectStandardOutput $log -RedirectStandardError $err `
@@ -379,6 +379,19 @@ function RodarAssistente {
             if (-not $caixa) { continue }
             if ($caixa -is [Windows.Controls.PasswordBox]) { $caixa.Password = $preencher[$nome] }
             else { $caixa.Text = $preencher[$nome] }
+        }
+        <#
+            O passo 3 exige ao menos um disco ou pasta escolhido.
+
+            Os cliques da etapa anterior passaram por todas as caixas de
+            selecao da tela - inclusive DESMARCANDO o que estava marcado. Sem
+            remarcar aqui, o passeio parava no 3 e as telas 4 a 7 deixavam de
+            ser provadas em silencio: o relatorio dizia "chegou ao passo 3" e
+            ninguem lia aquilo como perda de cobertura.
+        #>
+        if ($W.Discos.Count -eq 0 -and $W.Pastas.Count -eq 0) {
+            $primeiro = @($W.Ambiente.Discos | Where-Object { $_.ServeParaTrabalho })[0]
+            if ($primeiro) { $W.Discos = @($primeiro.Unidade) }
         }
         $antes = $W.Passo
         try { Clicar ($janela.FindName('btnAvancar')) } catch {
