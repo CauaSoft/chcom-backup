@@ -265,3 +265,55 @@ function NovaConfiguracao {
         Criada           = (Get-Date).ToUniversalTime().ToString('o')
     }
 }
+
+<#
+    O bucket protege contra quem apaga?
+
+    O agente perdeu o poder de apagar - a politica do cartorio nao concede
+    s3:DeleteObject. Mas isso protege contra a CREDENCIAL roubada, nao contra
+    quem entrar no console da AWS. Para isso existe o Bloqueio de Objeto, que
+    transforma um "apagar" em marcador e preserva a versao.
+
+    O QUE DA PARA CONFERIR DAQUI, E O QUE NAO DA
+
+    O rclone le o VERSIONAMENTO do bucket. Nao le a configuracao de Bloqueio
+    de Objeto - nao ha comando para isso.
+
+    Mas o Bloqueio EXIGE versionamento. Entao:
+
+      versionamento desligado -> Bloqueio esta DESLIGADO, com certeza
+      versionamento ligado    -> Bloqueio PODE estar ligado, nao da para
+                                 afirmar daqui
+
+    Meia resposta, e a metade que importa: o caso que precisa de aviso e
+    justamente o primeiro. Prometer mais do que se pode conferir seria pior
+    que nao conferir.
+#>
+function ConferirProtecaoDoBucket {
+    param(
+        [Parameter(Mandatory)] [string]$Rclone,
+        [Parameter(Mandatory)] [string]$Config,
+        [Parameter(Mandatory)] [string]$Bucket,
+        [string]$RemotoSemCifra = 'cofre-s3'
+    )
+    $r = [PSCustomObject]@{ Versionado = $false; Sabe = $false; Texto = ''; Erro = $null }
+
+    $exec = RodarRclone -Rclone $Rclone -Argumentos @(
+        'backend', 'versioning', "${RemotoSemCifra}:$Bucket", '--config', $Config)
+    if ($exec.Codigo -ne 0) {
+        $r.Erro = $exec.Erro
+        $r.Texto = 'nao consegui perguntar ao bucket'
+        return $r
+    }
+
+    $resposta = (($exec.Saida | Out-String) -replace '[\[\]"]', '').Trim()
+    $r.Sabe = $true
+    $r.Versionado = ($resposta -match 'Enabled')
+
+    $r.Texto = if ($r.Versionado) {
+        'versionamento ligado - o Bloqueio de Objeto pode estar ativo (isto daqui nao confirma)'
+    } else {
+        "versionamento $resposta - o Bloqueio de Objeto esta DESLIGADO"
+    }
+    return $r
+}

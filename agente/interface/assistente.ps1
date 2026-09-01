@@ -566,6 +566,19 @@ function Passo5_Chave {
         EscreverPapelDaChave -Arquivo $dlg.FileName -Chave $W.Chave `
             -Cartorio $W.Cartorio -Maquina $W.Ambiente.Maquina -Bucket $W.Bucket
 
+        <#
+            SALVAR E CONFERIR QUE SALVOU.
+
+            A caixa de dialogo pode voltar OK e o arquivo nao existir: pasta
+            sem permissao, disco cheio, antivirus. Marcar $W.Guardou sem olhar
+            o disco e acreditar no dialogo em vez de acreditar no arquivo.
+        #>
+        if (-not (Test-Path $dlg.FileName)) {
+            Avisar 'Nao consegui gravar o papel da chave nesse lugar. Escolha outra pasta.'
+            return
+        }
+        $W.PapelSalvo = $dlg.FileName
+
         # Abre o bloco de notas com o papel: sem isso, "salvei" costuma virar
         # um arquivo esquecido numa pasta, nunca lido nem impresso.
         Start-Process notepad.exe -ArgumentList $dlg.FileName
@@ -575,16 +588,65 @@ function Passo5_Chave {
     $bots.Children.Add($bSalvar) | Out-Null
     $sp.Children.Add($bots) | Out-Null
 
+    <#
+        MARCAR NAO E GUARDAR.
+
+        A confirmacao era uma caixa de selecao: "confirmo que guardei a chave".
+        Um clique. A pessoa com pressa marca sem ter salvo nada, e o assistente
+        deixa passar.
+
+        E o que essa caixinha protegia era isto: sem a chave, o que esta na AWS
+        e lixo cifrado. Nem a CH.Com, nem a Amazon, nem o dono da conta le. Se
+        ela existir so no servidor que ela protege, e o servidor for destruido
+        - que e exatamente o cenario para o qual o Cofre existe - o backup
+        morre junto.
+
+        Uma caixinha de selecao nao pode ser a unica coisa entre 38 cartorios e
+        isso.
+
+        Agora sao duas provas, e as duas sao verificaveis:
+
+          1. O ARQUIVO EXISTE. Conferido no disco depois de gravar, e nao pelo
+             retorno do dialogo.
+          2. A PESSOA LEU O PAPEL. Ela digita de volta os ultimos seis
+             caracteres da chave. Nao da para adivinhar, e nao da para
+             responder sem abrir o arquivo que acabou de salvar.
+
+        E o mesmo mecanismo que carteira de criptomoeda usa para a frase de
+        recuperacao, pelo mesmo motivo: o custo de errar e total e irreversivel.
+    #>
     if ($W.Guardou) {
-        $marca = New-Object Windows.Controls.CheckBox
-        $marca.Content = 'Confirmo que guardei a chave fora deste servidor'
-        $marca.Foreground = Pincel $Cores.Texto
-        $marca.FontSize = 13.5
-        $marca.Margin = '0,20,0,0'
-        $marca.IsChecked = $W.Guardou -and $btnAvancar.IsEnabled
-        $marca.Add_Checked({ $btnAvancar.IsEnabled = $true }.GetNewClosure())
-        $marca.Add_Unchecked({ $btnAvancar.IsEnabled = $false }.GetNewClosure())
-        $sp.Children.Add($marca) | Out-Null
+        $ultimos = $W.Chave.Conteudo.Substring($W.Chave.Conteudo.Length - 6)
+
+        $sp.Children.Add((Secao 'Confirme que o papel esta com voce' `
+            'Abra o arquivo que acabou de salvar e copie o final da chave de conteudo')) | Out-Null
+
+        $c = CampoTexto 'Ultimos 6 caracteres da chave de conteudo' '' 'esta no papel, na linha CHAVE DE CONTEUDO'
+        $sp.Children.Add($c.Elemento) | Out-Null
+        $W.Caixas['confChave'] = $c.Caixa
+
+        $aviso = NovoTexto ('Guardado em: ' + $W.PapelSalvo) 12 $Cores.Texto3
+        $aviso.Margin = '0,10,0,0'
+        $sp.Children.Add($aviso) | Out-Null
+
+        $resposta = NovoTexto '' 13 $Cores.Vermelho 'SemiBold'
+        $resposta.Margin = '0,10,0,0'
+        $sp.Children.Add($resposta) | Out-Null
+
+        $c.Caixa.Add_TextChanged({
+            $digitado = $c.Caixa.Text.Trim()
+            if (-not $digitado) { $resposta.Text = ''; $btnAvancar.IsEnabled = $false; return }
+            if ($digitado -ceq $ultimos) {
+                $resposta.Foreground = Pincel $Cores.Verde
+                $resposta.Text = 'Confere. O papel esta com voce.'
+                $btnAvancar.IsEnabled = $true
+            } else {
+                $resposta.Foreground = Pincel $Cores.Vermelho
+                $resposta.Text = 'Nao confere ainda. Olhe o papel que voce salvou.'
+                $btnAvancar.IsEnabled = $false
+            }
+        }.GetNewClosure())
+
     } else {
         $sp.Children.Add((BlocoAviso 'aviso' 'Salve o papel da chave para poder continuar.')) | Out-Null
     }
@@ -602,6 +664,41 @@ function Passo5_Chave {
     De quebra, mede a velocidade REAL - que e o numero que decide se subir VM
     por este link e viavel.
 #>
+
+<#
+    O aviso do bucket desprotegido.
+
+    Aparece nos DOIS modos, porque o risco e o mesmo: o agente nao pode
+    apagar - a politica nao concede s3:DeleteObject - mas isso protege contra
+    a credencial roubada, nao contra quem entra no console da AWS.
+
+    E deliberadamente um aviso, e nao uma trava. Um cartorio sem Bloqueio de
+    Objeto ainda esta muito melhor com backup do que sem. Impedir a
+    configuracao aqui trocaria um risco por um pior.
+#>
+function BlocoProtecaoDoBucket($protecao) {
+    if (-not $protecao) { return $null }
+
+    if ($protecao.Erro) {
+        return (BlocoAviso 'aviso' (
+            'Nao consegui conferir se o bucket tem Bloqueio de Objeto: ' + $protecao.Erro +
+            ' Confira no console da AWS - sem ele, quem entrar na conta apaga o backup.'))
+    }
+    if (-not $protecao.Versionado) {
+        return (BlocoAviso 'perigo' (
+            'ESTE BUCKET NAO TEM BLOQUEIO DE OBJETO. ' + $protecao.Texto + '. ' +
+            'O agente nao pode apagar nada - a politica dele nao tem s3:DeleteObject - mas ' +
+            'quem entrar no console da AWS apaga o backup inteiro, e o ransomware moderno faz ' +
+            'exatamente isso antes de cifrar o servidor. Ligue versionamento e Bloqueio de ' +
+            'Objeto em modo Governanca, 180 dias: e o minimo que o Deep Archive ja cobra, ' +
+            'entao nao custa nada a mais. O passo a passo esta em aws/COMECAR-NA-AWS.md.'))
+    }
+    return (BlocoAviso 'info' (
+        'O bucket tem versionamento ligado, que e o que o Bloqueio de Objeto exige. ' +
+        'Daqui nao da para confirmar se o Bloqueio esta ativo - o rclone nao le essa ' +
+        'configuracao. Confira uma vez no console da AWS.'))
+}
+
 function Passo6_Teste {
     $sp = New-Object Windows.Controls.StackPanel
     $ehGerente = ((ModoDoPrograma $raiz) -eq 'gerente')
@@ -650,11 +747,15 @@ function Passo6_Teste {
             "$quantos cartorios ja publicam estado neste bucket."
         }
         $sp.Children.Add((FaixaVeredito 'ok' 'Leitura do Cofre funcionando' $frase)) | Out-Null
+        $bp = BlocoProtecaoDoBucket $W.Protecao
+        if ($bp) { $sp.Children.Add($bp) | Out-Null }
         return $sp
     }
 
     $sp.Children.Add((FaixaVeredito 'ok' 'Conexao com a AWS funcionando' `
         "Subida medida: $($W.Mbps) Mbps")) | Out-Null
+        $bp = BlocoProtecaoDoBucket $W.Protecao
+        if ($bp) { $sp.Children.Add($bp) | Out-Null }
 
     # A conta que decide se a arquitetura serve NESTE cartorio.
     $totalVM = 0
@@ -930,6 +1031,8 @@ function ExecutarTeste {
             if ($exec.Codigo -ne 0) { throw $exec.Erro }
             $itens = LerListaDoRclone $exec.Saida
             $W.Cartorios = @($itens | Where-Object { $_.IsDir }).Count
+            $W.Protecao = ConferirProtecaoDoBucket -Rclone $rclone `
+                -Config (CaminhoDe $dados 'rclone.conf') -Bucket $W.Bucket
             $W.Mbps = 0
             $W.Testou = $true
             return
@@ -987,6 +1090,11 @@ function ExecutarTeste {
             -DestinoRemoto "cofre:$alvo" -BytesEsperados 32MB
         if (-not $conf.Confere) { throw "o arquivo nao chegou inteiro: $($conf.Erro)" }
         $W.Mbps = [math]::Round((32MB * 8) / $relogio.Elapsed.TotalSeconds / 1MB, 1)
+
+        # De carona no teste, enquanto a credencial ja esta na mao: o bucket
+        # protege contra quem apaga? Ver ConferirProtecaoDoBucket.
+        $W.Protecao = ConferirProtecaoDoBucket -Rclone $rclone `
+            -Config (CaminhoDe $dados 'rclone.conf') -Bucket $W.Bucket
 
     } catch {
         $W.Erro = $_.Exception.Message
