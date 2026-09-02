@@ -65,16 +65,48 @@ foreach ($p in $preservar) {
     }
 }
 
+<#
+    RODAR O INSTALADOR DE DENTRO DA PROPRIA INSTALACAO.
+
+    Acontece assim: o Cofre ja esta em C:\Program Files\CH.Com Cofre, alguem
+    procura "instalar-cofre.ps1" na maquina, acha o que esta LA DENTRO, e roda.
+    Origem e destino viram a mesma pasta.
+
+    O Copy-Item entao tenta copiar cada arquivo em cima de si mesmo e para com
+
+        Nao pode substituir o item ... por ele mesmo
+
+    O instalador morria ali, no primeiro passo, sem criar atalho e sem abrir o
+    programa - dando a impressao de que a instalacao inteira falhou, quando na
+    verdade ela ja estava feita.
+
+    Comparar os caminhos resolvidos e nao os textos: "C:\Program Files\CH.Com
+    Cofre" e "C:\PROGRA~1\CH.Com Cofre" sao a mesma pasta escritos diferente,
+    e o nome curto aparece sozinho em varios caminhos do Windows.
+#>
+function MesmaPasta([string]$a, [string]$b) {
+    if (-not $a -or -not $b) { return $false }
+    if (-not (Test-Path $a) -or -not (Test-Path $b)) { return $false }
+    $ra = (Get-Item $a).FullName.TrimEnd('\')
+    $rb = (Get-Item $b).FullName.TrimEnd('\')
+    return ($ra -ieq $rb)
+}
+
 try {
     if (-not (Test-Path $Destino)) { New-Item -ItemType Directory -Path $Destino -Force | Out-Null }
 
-    foreach ($item in @(Get-ChildItem $origem -Force)) {
-        # Nao copia o que pertence a ESTA maquina de origem nem lixo de
-        # execucao: historico e registros sao do servidor, nao do instalador.
-        if ($item.Name -in @('historico', 'registros', 'cofre.conf', 'rclone.conf', 'estado.json')) { continue }
-        Copy-Item $item.FullName -Destination $Destino -Recurse -Force
+    if (MesmaPasta $origem $Destino) {
+        Ok 'o Cofre ja esta instalado nesta pasta - nada a copiar'
+        Nota 'seguindo para os atalhos e o agendamento'
+    } else {
+        foreach ($item in @(Get-ChildItem $origem -Force)) {
+            # Nao copia o que pertence a ESTA maquina de origem nem lixo de
+            # execucao: historico e registros sao do servidor, nao do instalador.
+            if ($item.Name -in @('historico', 'registros', 'cofre.conf', 'rclone.conf', 'estado.json')) { continue }
+            Copy-Item $item.FullName -Destination $Destino -Recurse -Force
+        }
+        Ok "arquivos copiados para $Destino"
     }
-    Ok "arquivos copiados para $Destino"
 
     <#
         O modo fica gravado na instalacao, e nao perguntado na tela.
