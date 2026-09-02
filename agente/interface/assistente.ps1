@@ -831,6 +831,63 @@ function Passo7_Pronto {
     $c.Child = $inner
     $sp.Children.Add($c) | Out-Null
 
+    <#
+        A PRIMEIRA COPIA COMECA AQUI, E NAO NA PROXIMA MADRUGADA.
+
+        O assistente terminava agendando e mandando embora. Quem instala num
+        cartorio vai embora de la sem nunca ter visto uma copia acontecer - e
+        descobre semanas depois, se descobrir, que alguma coisa no caminho nao
+        funcionava.
+
+        Pior: o servidor passa dias "configurado" e sem nenhuma copia. O
+        agendamento so roda a 01:30, e o tecnico ja foi.
+
+        O botao dispara a rodada COMPLETA - -Tudo, o mesmo modo da tarefa
+        mensal: maquinas virtuais, imagem do servidor, discos, pastas e
+        bancos. Nao e uma amostra.
+
+        Ele nao trava a janela: o motor sobe em processo separado e o painel
+        acompanha pelo estado. Fechar aqui nao interrompe nada.
+    #>
+    if ((ModoDoPrograma $raiz) -ne 'gerente') {
+        $sp.Children.Add((Secao 'A primeira copia' 'Nao espere a madrugada para saber se funciona')) | Out-Null
+
+        $cA = NovoCartao
+        $inA = New-Object Windows.Controls.StackPanel
+        $inA.Children.Add((NovoTexto (
+            'O agendamento so roda a 01:30. Rodar a primeira copia agora e a unica forma de ' +
+            'sair daqui sabendo que funciona - e nao achando que funciona.') 13 $Cores.Texto2)) | Out-Null
+
+        $bAgora = NovoBotao 'Fazer o backup completo agora' $Icones.Play $true $janela
+        $bAgora.HorizontalAlignment = 'Left'
+        $bAgora.Margin = '0,16,0,0'
+        $bAgora.Add_Click({
+            $bAgora.IsEnabled = $false
+            $bAgora.Content = 'iniciado - acompanhe no Painel'
+            <#
+                ELEVADO, porque o motor exporta VM, chama o wbadmin e cria
+                copia de sombra. Sem isso ele falharia em silencio.
+            #>
+            try {
+                Start-Process powershell -Verb RunAs -ArgumentList @(
+                    '-NoProfile','-ExecutionPolicy','Bypass','-WindowStyle','Hidden',
+                    '-File', (Aspas (CaminhoDe $raiz 'cofre.ps1')), '-Tudo')
+            } catch {
+                $bAgora.IsEnabled = $true
+                $bAgora.Content = 'Fazer o backup completo agora'
+                Avisar 'O Windows precisa de permissao de administrador para fazer a copia. Nada foi feito.'
+            }
+        }.GetNewClosure())
+        $inA.Children.Add($bAgora) | Out-Null
+
+        $inA.Children.Add((NovoTexto (
+            'Feche esta janela depois de clicar. A copia continua sozinha, e o Painel mostra o ' +
+            'andamento - inclusive se voce reabrir o programa mais tarde.') 12 $Cores.Texto3)) | Out-Null
+
+        $cA.Child = $inA
+        $sp.Children.Add($cA) | Out-Null
+    }
+
     $sp.Children.Add((BlocoAviso 'aviso' (
         'ANTES DE SAIR DO CARTORIO: confirme que o arquivo da chave nao ficou neste servidor. ' +
         'Ele deve estar impresso e no seu cofre de senhas, e o arquivo apagado daqui.'))) | Out-Null
