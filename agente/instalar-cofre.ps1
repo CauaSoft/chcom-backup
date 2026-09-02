@@ -235,7 +235,15 @@ function CriarAtalho([string]$caminho, [string]$alvo, [string]$argumentos, [stri
     $a.TargetPath = $alvo
     $a.Arguments = $argumentos
     $a.WorkingDirectory = $Destino
-    $a.IconLocation = $icone
+    <#
+        O ",0" nao e enfeite.
+
+        IconLocation espera "caminho,indice". So o caminho funciona em alguns
+        Windows e e ignorado em outros - e ai o atalho sai com o icone
+        generico do PowerShell, que e o que o cliente ve na area de trabalho
+        dele.
+    #>
+    $a.IconLocation = "$icone,0"
     $a.Description = $descricao
     $a.Save()
 }

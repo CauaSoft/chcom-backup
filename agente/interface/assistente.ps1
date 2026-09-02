@@ -83,20 +83,35 @@ try {
     $img.EndInit()
     $janela.FindName('imgLogo').Source = $img
 } catch { }
-# O icone tambem precisa de CacheOption = OnLoad.
-#
-# Sem isso o WPF mantem o arquivo ABERTO enquanto a janela existir, e o
-# chcom.ico fica travado. Pego ao tentar remontar o pacote com o programa
-# aberto: "o processo nao pode acessar o arquivo". Na pratica isso impediria
-# o instalador de atualizar a marca sem antes fechar tudo.
-try {
-    $ico = New-Object Windows.Media.Imaging.BitmapImage
-    $ico.BeginInit()
-    $ico.UriSource = New-Object Uri((CaminhoDe $pastaMarca 'chcom.ico'))
-    $ico.CacheOption = 'OnLoad'
-    $ico.EndInit()
-    $janela.Icon = $ico
-} catch { }
+<#
+    O maior quadro do .ico, e nao o primeiro - mesmo caso da janela principal.
+
+    O BitmapImage pega sempre a menor imagem de dentro do .ico, seja qual for
+    a ordem no arquivo, e o assistente abria com um icone de 16 pixels
+    esticado. IconeGrande vem do cofre-ui.ps1 quando ele ja esta carregado; se
+    o assistente rodar sozinho, a copia local resolve.
+#>
+if (-not (Get-Command IconeGrande -ErrorAction SilentlyContinue)) {
+    function IconeGrande([string]$arquivo) {
+        if (-not (Test-Path $arquivo)) { return $null }
+        try {
+            $fluxo = [IO.File]::OpenRead($arquivo)
+            try {
+                $dec = New-Object Windows.Media.Imaging.IconBitmapDecoder(
+                    $fluxo,
+                    [Windows.Media.Imaging.BitmapCreateOptions]::PreservePixelFormat,
+                    [Windows.Media.Imaging.BitmapCacheOption]::OnLoad)
+                $maior = $null
+                foreach ($q in $dec.Frames) {
+                    if (-not $maior -or $q.PixelWidth -gt $maior.PixelWidth) { $maior = $q }
+                }
+                return $maior
+            } finally { $fluxo.Dispose() }
+        } catch { return $null }
+    }
+}
+$ico = IconeGrande (CaminhoDe $pastaMarca 'chcom.ico')
+if ($ico) { $janela.Icon = $ico }
 
 # Estado do assistente. Hashtable pelo mesmo motivo da janela principal: os
 # manipuladores de clique usam GetNewClosure(), que da a eles um escopo de

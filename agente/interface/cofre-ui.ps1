@@ -64,20 +64,42 @@ try {
     $img.EndInit()
     $janela.FindName('imgLogo').Source = $img
 } catch { }
-# O icone tambem precisa de CacheOption = OnLoad.
-#
-# Sem isso o WPF mantem o arquivo ABERTO enquanto a janela existir, e o
-# chcom.ico fica travado. Pego ao tentar remontar o pacote com o programa
-# aberto: "o processo nao pode acessar o arquivo". Na pratica isso impediria
-# o instalador de atualizar a marca sem antes fechar tudo.
-try {
-    $ico = New-Object Windows.Media.Imaging.BitmapImage
-    $ico.BeginInit()
-    $ico.UriSource = New-Object Uri((CaminhoDe $pastaMarca 'chcom.ico'))
-    $ico.CacheOption = 'OnLoad'
-    $ico.EndInit()
-    $janela.Icon = $ico
-} catch { }
+<#
+    O MAIOR QUADRO DO .ico, e nao o primeiro.
+
+    Um .ico guarda varias imagens - 16, 32, 48, 256 - e o BitmapImage pega
+    SEMPRE a menor, seja qual for a ordem no arquivo. Medido: "a janela
+    carrega: 16x16". A janela abria com um icone de 16 pixels esticado, e na
+    barra de tarefas isso aparece como um borrao.
+
+    Reordenar o arquivo nao resolve - foi tentado. O jeito e ler os quadros e
+    escolher.
+
+    OnLoad continua necessario: sem ele o WPF mantem o arquivo ABERTO enquanto
+    a janela existir, e o chcom.ico fica travado. Pego ao tentar remontar o
+    pacote com o programa aberto - o que impediria o instalador de atualizar a
+    marca sem fechar tudo antes.
+#>
+function IconeGrande([string]$arquivo) {
+    if (-not (Test-Path $arquivo)) { return $null }
+    try {
+        $fluxo = [IO.File]::OpenRead($arquivo)
+        try {
+            $dec = New-Object Windows.Media.Imaging.IconBitmapDecoder(
+                $fluxo,
+                [Windows.Media.Imaging.BitmapCreateOptions]::PreservePixelFormat,
+                [Windows.Media.Imaging.BitmapCacheOption]::OnLoad)
+            $maior = $null
+            foreach ($q in $dec.Frames) {
+                if (-not $maior -or $q.PixelWidth -gt $maior.PixelWidth) { $maior = $q }
+            }
+            return $maior
+        } finally { $fluxo.Dispose() }
+    } catch { return $null }
+}
+
+$ico = IconeGrande (CaminhoDe $pastaMarca 'chcom.ico')
+if ($ico) { $janela.Icon = $ico }
 
 # ------------------------------------------------------------------------------
 #  Dados
