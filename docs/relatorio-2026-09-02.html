@@ -1,0 +1,500 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><title>CH.Com Cofre</title>
+<style>
+@page { size: A4; margin: 18mm 16mm 16mm 16mm; }
+* { box-sizing: border-box; }
+body { font-family: "Segoe UI", Calibri, sans-serif; font-size: 10.5pt; line-height: 1.55;
+       color: #1c2733; margin: 0; }
+h1 { font-size: 20pt; color: #0b3a68; margin: 0 0 4mm 0; letter-spacing: -.3px; }
+h2 { font-size: 14pt; color: #0b3a68; margin: 9mm 0 3mm 0; padding-bottom: 1.5mm;
+     border-bottom: 2px solid #1E90FF; page-break-after: avoid; }
+h3 { font-size: 11.5pt; color: #14416f; margin: 6mm 0 2mm 0; page-break-after: avoid; }
+p { margin: 0 0 3mm 0; text-align: justify; }
+ul, ol { margin: 0 0 3mm 0; padding-left: 6mm; }
+li { margin-bottom: 1.5mm; }
+table { width: 100%; border-collapse: collapse; margin: 3mm 0 4mm 0; font-size: 9.5pt;
+        page-break-inside: avoid; }
+th { background: #0b3a68; color: #fff; text-align: left; padding: 2mm 2.5mm; font-weight: 600; }
+td { border-bottom: 1px solid #dde4ea; padding: 2mm 2.5mm; vertical-align: top; }
+tr:nth-child(even) td { background: #f6f9fc; }
+.capa { height: 250mm; display: flex; flex-direction: column; justify-content: center;
+        page-break-after: always; }
+.capa .marca { font-size: 13pt; color: #1E90FF; font-weight: 700; letter-spacing: 2px; }
+.capa h1 { font-size: 34pt; margin: 4mm 0 2mm 0; }
+.capa .sub { font-size: 14pt; color: #55677a; margin-bottom: 14mm; }
+.capa .meta { font-size: 10.5pt; color: #55677a; border-top: 2px solid #1E90FF; padding-top: 4mm; }
+.destaque { background: #eef5fc; border-left: 4px solid #1E90FF; padding: 3mm 4mm; margin: 4mm 0;
+            page-break-inside: avoid; }
+.alerta { background: #fdf3ea; border-left: 4px solid #d97706; padding: 3mm 4mm; margin: 4mm 0;
+          page-break-inside: avoid; }
+.grave { background: #fdeeee; border-left: 4px solid #c0392b; padding: 3mm 4mm; margin: 4mm 0;
+         page-break-inside: avoid; }
+.bom { background: #eefaf0; border-left: 4px solid #1e9e52; padding: 3mm 4mm; margin: 4mm 0;
+       page-break-inside: avoid; }
+.ok  { color: #1e9e52; font-weight: 600; }
+.nao { color: #c0392b; font-weight: 600; }
+.pag { page-break-before: always; }
+code { font-family: Consolas, monospace; font-size: 9pt; background: #f0f4f8; padding: .5mm 1mm; }
+pre  { font-family: Consolas, monospace; font-size: 8.5pt; background: #f6f9fc;
+       border: 1px solid #dde4ea; padding: 3mm; margin: 3mm 0; white-space: pre-wrap;
+       page-break-inside: avoid; }
+.nota { font-size: 9pt; color: #6b7c8f; font-style: italic; }
+.num { font-size: 22pt; font-weight: 700; color: #0b3a68; line-height: 1; }
+.cx { display: inline-block; width: 31%; margin-right: 2%; vertical-align: top;
+      border: 1px solid #dde4ea; border-radius: 3mm; padding: 3mm; }
+.cx .r { font-size: 8.5pt; color: #6b7c8f; text-transform: uppercase; letter-spacing: .5px; }
+</style></head><body>
+
+<div class="capa">
+  <div class="marca">CH.COM SOLUÇÕES EM TECNOLOGIA</div>
+  <h1>CH.Com Cofre</h1>
+  <div class="sub">Backup e recuperação de desastre para servidores de cartório</div>
+  <p style="font-size:11pt;color:#55677a;max-width:150mm">
+    Relatório de andamento do desenvolvimento e dos testes realizados.
+    Escrito para leitura por quem não é da área técnica.
+  </p>
+  <div class="meta">
+    <strong>Período coberto:</strong> 26 de agosto a 2 de setembro de 2026<br>
+    <strong>Responsável técnico:</strong> Cauã Vitor<br>
+    <strong>Emitido em:</strong> 2 de setembro de 2026
+  </div>
+</div>
+<h1>Resumo executivo</h1>
+
+<p>A CH.Com atende cerca de 38 cartórios. Cada um tem um servidor com o sistema, os
+bancos de dados e os documentos digitalizados. <strong>Se esse servidor for destruído — incêndio,
+roubo, enchente ou ataque de ransomware — o cartório para.</strong> O que existia até agora não
+resolvia isso de forma confiável.</p>
+
+<p>Este projeto constrói um programa que copia o servidor do cartório para a nuvem da Amazon,
+de forma automática, cifrada e barata. É um produto próprio da CH.Com, sem licença de terceiros
+para pagar por cliente.</p>
+
+<h2>Onde estamos hoje</h2>
+
+<div style="margin:5mm 0">
+  <div class="cx"><div class="r">Programa</div><div class="num">Pronto</div>
+    <div class="nota">31 arquivos, 10.631 linhas</div></div>
+  <div class="cx"><div class="r">Envio para a Amazon</div><div class="num">Provado</div>
+    <div class="nota">testado contra a conta real</div></div>
+  <div class="cx"><div class="r">Recuperação</div><div class="num" style="color:#c0392b">Falta</div>
+    <div class="nota">nunca foi testada</div></div>
+</div>
+
+<p>O programa está construído e instalado no primeiro servidor. O caminho de <strong>ida</strong> —
+copiar, conferir, cifrar e enviar para a Amazon — foi testado e funciona. O caminho de
+<strong>volta</strong> — trazer os dados de lá em caso de desastre — está programado mas
+<strong>ainda não foi executado nenhuma vez</strong>.</p>
+
+<div class="alerta">
+  <strong>O ponto mais importante deste relatório:</strong> um backup que nunca foi restaurado
+  é uma esperança, não um backup. Enquanto não fizermos uma restauração completa de teste, não
+  podemos afirmar a nenhum cartório que ele está protegido. Esse teste leva de 12 a 48 horas de
+  espera da Amazon e está planejado para os próximos dias.
+</div>
+
+<h2>O que mudou de rumo nesta semana</h2>
+
+<p>Na quarta-feira, 26 de agosto, o projeto tinha um formato diferente: um painel na internet
+que recebia relatórios de cada cartório. Esse formato foi <strong>abandonado</strong> e substituído.</p>
+
+<table>
+<tr><th style="width:50%">Como era</th><th>Como ficou</th></tr>
+<tr><td>Um servidor na internet, com endereço público e senha, recebendo dados de 38 cartórios</td>
+    <td>Nenhum servidor. Cada cartório escreve seu status na própria nuvem, e o programa do gerente lê de lá</td></tr>
+<tr><td>Exigia domínio, certificado de segurança, uma máquina ligada 24 horas e uma senha por cartório</td>
+    <td>Não exige nada disso</td></tr>
+<tr><td>Se o painel caísse, ninguém enxergava nada</td>
+    <td>Não há o que cair</td></tr>
+</table>
+
+<p>A troca eliminou custo mensal fixo, eliminou um ponto único de falha e eliminou a superfície
+de ataque de um servidor exposto na internet.</p>
+
+<h2>Custo estimado</h2>
+
+<p>O armazenamento escolhido é o mais barato da Amazon para dados que quase nunca são lidos —
+adequado para backup, porque só se lê em caso de desastre.</p>
+
+<table>
+<tr><th>Item</th><th>Valor aproximado</th></tr>
+<tr><td>Guardar 1 TB por mês</td><td>US$ 1,00 (cerca de R$ 5,50)</td></tr>
+<tr><td>Recuperar 1 TB em caso de desastre, modo econômico (até 48 h)</td><td>US$ 2,50</td></tr>
+<tr><td>Recuperar 1 TB com pressa (até 12 h)</td><td>US$ 20,00</td></tr>
+<tr><td>Licença de software por cartório</td><td class="ok">Zero — o programa é nosso</td></tr>
+</table>
+
+<p class="nota">Observação importante: a Amazon cobra no mínimo 180 dias por qualquer arquivo
+enviado para esse tipo de armazenamento, mesmo que ele seja apagado antes. Isso está previsto na
+configuração e não é um custo surpresa.</p>
+<div class="pag"></div>
+<h1>Como o produto funciona</h1>
+
+<p>Em uma frase: <strong>um programa instalado no servidor do cartório copia o que importa,
+confere se a cópia está boa, tranca com uma chave e manda para a nuvem da Amazon todo dia,
+sozinho.</strong></p>
+
+<h2>Os cinco passos de cada cópia</h2>
+
+<table>
+<tr><th style="width:8%">Passo</th><th style="width:32%">O que acontece</th><th>Por que isso importa</th></tr>
+<tr><td><strong>1</strong></td><td>Cópia consistente</td>
+<td>Copiar um banco de dados enquanto ele está em uso gera um arquivo quebrado. O programa usa
+recursos do Windows e do próprio banco para tirar uma cópia íntegra <em>sem parar o sistema do
+cartório</em>. O atendimento não para.</td></tr>
+<tr><td><strong>2</strong></td><td>Conferência</td>
+<td>Antes de enviar, o programa confere que a cópia realmente serve. No caso de máquina virtual,
+ele testa se ela conseguiria ser reaberta. Backup que não abre é papel de parede.</td></tr>
+<tr><td><strong>3</strong></td><td>Impressão digital</td>
+<td>Cada arquivo ganha um código único calculado a partir do seu conteúdo. Na hora de restaurar,
+esse código prova que nada foi corrompido no caminho.</td></tr>
+<tr><td><strong>4</strong></td><td>Criptografia</td>
+<td>Os arquivos são trancados <em>dentro do servidor do cartório</em>, antes de sair. A Amazon
+recebe conteúdo ilegível. Nem funcionário da Amazon, nem quem invadir a conta, lê o que está lá.</td></tr>
+<tr><td><strong>5</strong></td><td>Envio e conferência final</td>
+<td>Envio para a nuvem, retomando de onde parou se a internet cair. Depois, o programa lista o
+destino e confirma que chegou tudo.</td></tr>
+</table>
+
+<h2>Onde os arquivos ficam na nuvem</h2>
+
+<p>A organização foi desenhada para uma pessoa conseguir achar as coisas olhando, sem precisar
+de ferramenta:</p>
+
+<pre>backup-aws-ch / cartorio-01 / SERVIDOR-01 / E / 2026-08-27 / DADOS
+                  cartório      servidor    disco   data      item</pre>
+
+<p>As <strong>pastas</strong> são legíveis. Os <strong>arquivos</strong> dentro delas são
+cifrados. Isso foi uma decisão deliberada: sem pastas legíveis, procurar um backup de três meses
+atrás no painel da Amazon seria impossível.</p>
+
+<h2>Duas versões do mesmo programa</h2>
+
+<table>
+<tr><th style="width:22%">Versão</th><th style="width:26%">Instalada onde</th><th>O que faz</th></tr>
+<tr><td><strong>Cartório</strong></td><td>No servidor de cada cliente</td>
+<td>Faz o backup. <strong>Não sabe que existem outros cartórios</strong> — o menu que mostra o
+conjunto simplesmente não existe nessa versão.</td></tr>
+<tr><td><strong>Gerente</strong></td><td>Só na CH.Com</td>
+<td>Não faz backup nenhum. Mostra a situação de todos os cartórios numa tela só: quem está em dia,
+quem falhou, quem parou de reportar.</td></tr>
+</table>
+
+<p>É o mesmo programa, com um arquivo de configuração escrito pelo instalador. Não existe uma
+opção na tela para trocar de modo — isso evita que alguém marque a caixa errada num cartório e
+passe a enxergar os outros 37.</p>
+
+<div class="destaque">
+<strong>A separação de verdade não é a tela.</strong> Cada cartório recebe uma credencial da
+Amazon que só alcança a própria pasta. Se essa credencial for roubada, o estrago para no backup
+de um cartório. Esconder o menu é conforto; quem impede o acesso é a Amazon.
+</div>
+
+<h2>O que o programa protege</h2>
+
+<p>Ele descobre sozinho o que existe no servidor e decide o que copiar:</p>
+
+<ul>
+<li><strong>Máquinas virtuais</strong> — o servidor inteiro, exportado enquanto roda</li>
+<li><strong>Bancos de dados</strong> — Firebird e SQL Server, pelo método oficial de cada um</li>
+<li><strong>Discos e pastas</strong> — escolhidos na instalação, copiados mesmo com arquivo aberto</li>
+<li><strong>Imagem do sistema</strong> — para reconstruir o servidor do zero</li>
+</ul>
+
+<p>Se algo não puder ser protegido — por falta de permissão, por o disco ter sumido, por o
+Windows daquela máquina não suportar — <strong>o programa diz isso na tela, em vermelho</strong>,
+em vez de fingir que está tudo bem.</p>
+<div class="pag"></div>
+<h1>Os testes realizados</h1>
+
+<p>Esta seção separa o que foi <strong>executado e conferido</strong> do que apenas
+<strong>existe programado</strong>. A distinção é a parte mais importante do relatório: só a
+primeira coluna autoriza prometer proteção a um cliente.</p>
+
+<h2>O que foi provado</h2>
+
+<table>
+<tr><th style="width:38%">O que</th><th>Resultado medido</th></tr>
+<tr><td>Copiar servidor virtual ligado</td>
+    <td>13,11 GB em 7 minutos e 47 segundos, com o sistema no ar o tempo todo</td></tr>
+<tr><td>A cópia realmente abre</td>
+    <td>testada e aprovada pelo próprio Windows</td></tr>
+<tr><td>Copiar pasta com arquivo em uso</td>
+    <td>funcionou; arquivos travados são copiados por recurso do próprio Windows</td></tr>
+<tr><td>Impressão digital dos arquivos</td>
+    <td>gerada e conferida na ida e na volta</td></tr>
+<tr><td><strong>Enviar para a Amazon</strong></td>
+    <td><strong>8 MB enviados, conferidos e velocidade medida na conta real</strong></td></tr>
+<tr><td>Velocidade do link do cartório</td>
+    <td>10,6 Mbps medidos na primeira vez; a medição foi corrigida depois (ver adiante)</td></tr>
+<tr><td>Ler a situação de vários cartórios</td>
+    <td>5 servidores lidos em 0,4 segundo, numa única consulta</td></tr>
+<tr><td>Todas as telas do programa</td>
+    <td>5 situações diferentes × 9 telas, com todos os botões clicados por teste automático</td></tr>
+<tr><td>Instalador em arquivo único</td>
+    <td>gerado e testado</td></tr>
+</table>
+
+<h2>O que ainda NÃO foi provado</h2>
+
+<table>
+<tr><th style="width:38%">O que</th><th>Por que ainda não</th></tr>
+<tr><td class="nao">Restaurar da nuvem</td>
+    <td>Exige um backup real lá dentro e de 12 a 48 horas de espera da Amazon. <strong>É o teste
+    mais importante de todos.</strong></td></tr>
+<tr><td class="nao">A cópia rodar sozinha de madrugada</td>
+    <td>O agendamento foi programado e conferido, mas nunca foi visto disparando com o programa
+    fechado. Depende de uma noite com o servidor ligado.</td></tr>
+<tr><td class="nao">Backup de banco Firebird</td>
+    <td>Nenhuma máquina de teste tem Firebird instalado</td></tr>
+<tr><td class="nao">Imagem completa do servidor</td>
+    <td>Esse recurso só existe no Windows Server; a máquina de teste é Windows comum</td></tr>
+</table>
+
+<div class="grave">
+<strong>Consequência prática:</strong> hoje podemos dizer que o backup <em>sai</em> do cartório e
+<em>chega</em> na Amazon. Não podemos ainda garantir que ele <em>volta</em>. Nenhum cartório deve
+ser comunicado como "protegido" antes do teste de restauração.
+</div>
+
+<h2>Como os testes são feitos</h2>
+
+<p>Foram construídas duas ferramentas próprias, que rodam a cada alteração:</p>
+
+<h3>1. Verificador do projeto</h3>
+<p>Lê todo o código procurando erro de escrita, função que não existe, arquivo faltando, e
+principalmente <strong>senha ou chave esquecida dentro do código</strong> — o tipo de descuido
+que vaza credencial de cliente.</p>
+
+<h3>2. Banco de provas</h3>
+<p>Abre o programa de verdade, sem mostrar a janela, e <strong>clica em cada botão de cada
+tela</strong>, em cinco situações diferentes: recém-instalado, configurado, com backup rodando,
+com falha, e no modo gerente. Depois percorre o assistente de instalação do primeiro ao último
+passo.</p>
+
+<pre>  1. Sintaxe de todo o projeto      31 scripts, 0 com erro
+  2. Telas                           3 telas, 0 com erro
+  3. A janela, cenário por cenário   5 cenários, todos os botões
+  4. O assistente, passo a passo     7 passos
+  5. Atalhos                         6, todos apontam para arquivo existente
+  6. Arquivos citados nas mensagens  todos existem
+
+  TUDO PASSOU - nenhum botão quebrou, nenhuma tela sumiu</pre>
+
+<p>Ele também detecta <strong>travamento</strong>: se uma tela demora mais de dois minutos, o
+teste interrompe e informa qual botão travou. Travar é tão grave quanto quebrar, e é bem mais
+difícil de perceber.</p>
+<div class="pag"></div>
+<h1>Defeitos encontrados e corrigidos</h1>
+
+<p>Esta seção existe porque ela mede o valor do trabalho da semana melhor que qualquer outra.
+Cada item abaixo é um defeito que <strong>teria causado prejuízo em produção</strong> e foi
+encontrado antes de chegar a um cartório.</p>
+
+<h2>Os quatro mais graves</h2>
+
+<h3>1. O primeiro envio para a Amazon funcionou — e o programa disse que falhou</h3>
+<p>Os 8 MB subiram corretamente. A tela mostrou erro. O programa estava confundindo a mensagem
+de progresso com mensagem de erro — e a primeira linha de "copiado com sucesso" virava a falha
+exibida.</p>
+<p>Uma varredura no projeto inteiro achou <strong>o mesmo defeito em mais seis lugares</strong>,
+incluindo o backup do banco de dados e <strong>toda a rotina de restauração</strong>. Nenhum deles
+tinha sido executado ainda, então ninguém tinha visto.</p>
+<p class="nota">O pior caso era o backup do Firebird: o programa que faz esse backup vai narrando
+o que está fazendo, e o Cofre teria morrido na primeira frase — com o backup funcionando
+perfeitamente.</p>
+
+<h3>2. A conferência final falharia em todo backup de verdade</h3>
+<p>Depois de enviar, o programa confere se chegou tudo. Essa conferência estava contando errado:
+com <strong>um</strong> arquivo funcionava por acidente; com <strong>dois ou mais</strong> — ou
+seja, em qualquer backup real — dizia <em>"o destino está vazio"</em> logo depois de um envio
+perfeito.</p>
+
+<h3>3. As duas tarefas automáticas rodavam o mesmo comando</h3>
+<p>Existem duas rotinas: uma diária, leve, só dos bancos de dados; e uma mensal, pesada, com as
+máquinas virtuais inteiras. As duas estavam configuradas para rodar <strong>a rotina pesada</strong>.</p>
+<p>Consequência: 2,3 horas de envio por <em>noite</em> em vez de por <em>mês</em>, e trinta cópias
+completas por mês na Amazon em vez de uma — cada uma cobrada por 180 dias.</p>
+
+<h3>4. Quando o agendamento falhava, ninguém ficava sabendo</h3>
+<p>Se o Windows recusasse registrar a rotina automática — falta de permissão, política da rede,
+serviço parado — o programa <strong>engolia o erro</strong> e a tela final dizia "configuração
+concluída, vai rodar sozinho".</p>
+<div class="grave">
+Esse era o defeito mais perigoso do conjunto: o cartório ficaria meses aparentando estar
+protegido, sem nenhuma cópia sendo feita, e a descoberta viria no dia do desastre.
+</div>
+<p>Hoje o programa confere no Windows se a tarefa ficou registrada e, quando não fica, mostra em
+vermelho: <em>"Configurado, mas NÃO vai rodar sozinho"</em>, com o motivo.</p>
+
+<h2>Riscos de segurança corrigidos</h2>
+
+<h3>A chave era protegida por uma caixa de seleção</h3>
+<p>Os backups são trancados com uma chave. <strong>Sem ela, o que está na Amazon é lixo
+ilegível</strong> — nem a CH.Com, nem a Amazon, nem o dono da conta consegue abrir.</p>
+<p>A confirmação de que o técnico havia guardado essa chave era uma caixinha para marcar. Um
+clique. Quem estivesse com pressa marcava sem ter salvo nada.</p>
+<p>Agora são duas provas verificáveis: o arquivo precisa <strong>existir no disco</strong>, e a
+pessoa precisa <strong>digitar de volta os últimos seis caracteres da chave</strong> — o que não
+dá para fazer sem abrir o arquivo. É o mesmo mecanismo usado por carteiras de criptomoeda, pelo
+mesmo motivo: errar custa tudo e não tem volta.</p>
+
+<h3>O programa perdeu o poder de apagar</h3>
+<p>A credencial que fica no servidor do cartório <strong>não tem permissão para apagar nada</strong>
+na nuvem. Isso é deliberado.</p>
+<div class="destaque">
+O ataque de ransomware moderno segue este roteiro: invade o servidor, procura a credencial do
+backup, <strong>apaga o backup na nuvem</strong>, e só então cifra a máquina para pedir resgate.
+Se o programa nunca precisa apagar, a permissão nunca é concedida — e esse roteiro não tem como
+terminar.
+</div>
+<p>Para isso valer, o teste de conexão foi mudado: ele deixava um arquivo e apagava. Agora ele
+deixa o arquivo e não apaga — custa menos de um centavo por mês e elimina a necessidade da
+permissão.</p>
+
+<h3>O programa agora pergunta se o cofre da Amazon está trancado</h3>
+<p>Existe um recurso da Amazon que impede exclusão mesmo por quem entra na conta. Ele estava
+documentado, mas documentação ninguém lê. Agora o próprio programa verifica e avisa quando o
+cofre está desprotegido.</p>
+<p class="nota">Com honestidade sobre o limite: a ferramenta consegue verificar metade da
+configuração. Quando não consegue confirmar, ela diz isso, em vez de dar um "tudo certo" que não
+pode sustentar.</p>
+<div class="pag"></div>
+<h1>Registro do trabalho, dia a dia</h1>
+
+<p>Cada linha é uma entrega registrada no repositório do projeto, com data e hora.</p>
+
+<table>
+<tr><th style="width:16%">Data</th><th>O que foi feito</th></tr>
+<tr><td><strong>Qua 26/08</strong></td>
+    <td>Painel passa a receber e mostrar os dados do Cofre. Última entrega do formato antigo.</td></tr>
+<tr><td colspan="2" style="background:#eef5fc;font-weight:600;color:#0b3a68">
+    Decisão de arquitetura: o painel na internet é abandonado</td></tr>
+<tr><td><strong>Seg 31/08</strong></td>
+    <td>O produto passa a ser um só: o painel deixa de ser servidor e vira tela do programa.
+        Cada cartório escreve o próprio status na nuvem.</td></tr>
+<tr><td></td><td>Nova tela "Conferir na nuvem" — a única parte do programa que não acredita no
+        próprio relatório e vai perguntar direto para a Amazon.</td></tr>
+<tr><td></td><td>Varredura que achou o mesmo defeito em seis lugares, incluindo o backup do banco
+        e toda a restauração.</td></tr>
+<tr><td></td><td>Reforma do painel principal, depois de fotografar as telas e olhar de verdade
+        para elas pela primeira vez.</td></tr>
+<tr><td></td><td>Correção do modo gerente, que não teria como funcionar; criação do instalador em
+        arquivo único.</td></tr>
+<tr><td></td><td>O programa passa a se configurar sozinho ao abrir, sem arquivo de comando.</td></tr>
+<tr><td></td><td>Correção das duas tarefas automáticas e do erro engolido no agendamento.</td></tr>
+<tr><td></td><td>A tela do gerente passa a oferecer o caminho para configurar, em vez de só
+        mandar configurar.</td></tr>
+<tr><td><strong>Ter 01/09</strong></td>
+    <td>Documento de estado do projeto, separando o provado do apenas programado.</td></tr>
+<tr><td></td><td>Correção dos dois riscos de perda total: a chave e o cofre desprotegido.</td></tr>
+<tr><td><strong>Qua 02/09</strong></td>
+    <td>Script que cria toda a estrutura na Amazon de uma vez, sem passar por vinte telas.</td></tr>
+<tr><td></td><td>Instalador que encontra o pacote sozinho; botão "fazer o backup completo agora"
+        no fim da instalação.</td></tr>
+<tr><td></td><td>Correção do instalador que copiava a pasta em cima dela mesma.</td></tr>
+</table>
+
+<div class="destaque">
+<strong>22 entregas registradas</strong> no período, sendo 13 desde segunda-feira. Cada uma com o
+registro do que foi corrigido e por quê — o que permite entender uma decisão daqui a seis meses
+sem depender da memória de ninguém.
+</div>
+
+<h2>O que está entregue e onde</h2>
+
+<table>
+<tr><th style="width:34%">Item</th><th>Situação</th></tr>
+<tr><td>Instalador para cartório</td><td class="ok">pronto, arquivo único, na pasta de rede</td></tr>
+<tr><td>Instalador para a CH.Com</td><td class="ok">pronto, versão separada</td></tr>
+<tr><td>Guia de configuração da Amazon</td><td class="ok">passo a passo escrito, com as permissões prontas para colar</td></tr>
+<tr><td>Script que cria tudo na Amazon</td><td class="ok">pronto, roda dentro do painel da Amazon</td></tr>
+<tr><td>Documento "O que falta"</td><td class="ok">atualizado, separa provado de não provado</td></tr>
+<tr><td>Registro visual de todas as telas</td><td class="ok">16 imagens</td></tr>
+<tr><td>Código-fonte</td><td class="ok">repositório próprio, com histórico completo</td></tr>
+</table>
+<div class="pag"></div>
+<h1>Riscos em aberto</h1>
+
+<p>Listados por gravidade. Nenhum deles é surpresa: todos são conhecidos, documentados e têm
+caminho de solução definido.</p>
+
+<table>
+<tr><th style="width:6%">#</th><th style="width:30%">Risco</th><th>Situação e caminho</th></tr>
+
+<tr><td><strong>1</strong></td><td class="nao">A restauração nunca foi testada</td>
+<td>É o maior risco do projeto e não é técnico — é de disciplina. O procedimento está escrito e
+programado. Precisa de um backup real na nuvem e de até 48 horas de espera.
+<br><strong>Prazo:</strong> assim que o primeiro backup real subir.</td></tr>
+
+<tr><td><strong>2</strong></td><td class="nao">A rotina automática nunca disparou</td>
+<td>O agendamento é registrado e conferido, mas nunca foi visto rodando de madrugada com o
+programa fechado. Precisa de uma noite com o servidor ligado.
+<br><strong>Prazo:</strong> primeira noite após a instalação.</td></tr>
+
+<tr><td><strong>3</strong></td><td>Não existe regra de expiração na nuvem</td>
+<td>Hoje nada apaga cópia antiga. O custo cresce indefinidamente. Precisa de uma regra definida —
+que depende de uma decisão de negócio: por quantos meses guardar.
+<br><strong>Decisão pendente da diretoria.</strong></td></tr>
+
+<tr><td><strong>4</strong></td><td>Cada backup é uma cópia inteira</td>
+<td>Nada é reaproveitado entre datas. Isso dá pontos de recuperação independentes — um não depende
+do outro — e custa envio cheio toda vez. Aceitável para volumes de dezenas de GB; precisa ser
+revisto para pastas de centenas de GB.</td></tr>
+
+<tr><td><strong>5</strong></td><td>Recursos ainda não exercitados</td>
+<td>Backup de Firebird, de SQL Server e imagem completa do servidor estão programados mas nunca
+rodaram, por falta de máquina de teste com esses componentes.
+<br><strong>Caminho:</strong> testar no primeiro cartório real que os tenha.</td></tr>
+</table>
+
+<h2>O que trava tudo hoje</h2>
+
+<div class="alerta">
+<p style="margin-bottom:2mm"><strong>Uma coisa só: a estrutura na conta da Amazon.</strong></p>
+<p style="margin:0">O programa está construído, testado e instalado. O que falta são cerca de
+vinte minutos de configuração na conta da Amazon: criar o depósito, criar o usuário de acesso e
+copiar duas senhas. Sem isso, o assistente de instalação para no passo do teste.</p>
+</div>
+
+<p>Essa configuração já foi parcialmente feita — o depósito existe. Falta o usuário de acesso.
+Foi preparado um script que faz isso automaticamente dentro do próprio painel da Amazon,
+justamente para eliminar a etapa manual, que é onde o processo vinha travando.</p>
+
+<h1>Próximos passos</h1>
+
+<table>
+<tr><th style="width:8%">Ordem</th><th style="width:32%">Passo</th><th>Prazo</th></tr>
+<tr><td><strong>1</strong></td><td>Criar o usuário de acesso na Amazon</td><td>hoje, 20 minutos</td></tr>
+<tr><td><strong>2</strong></td><td>Concluir a instalação no primeiro servidor</td><td>hoje, 10 minutos</td></tr>
+<tr><td><strong>3</strong></td><td>Primeiro backup completo, acompanhado</td><td>hoje</td></tr>
+<tr><td><strong>4</strong></td><td>Conferir de manhã se a rotina automática rodou</td><td>amanhã</td></tr>
+<tr><td><strong>5</strong></td><td><strong>Teste de restauração completo</strong></td><td>2 a 3 dias (espera da Amazon)</td></tr>
+<tr><td><strong>6</strong></td><td>Definir por quantos meses guardar as cópias</td><td>decisão de negócio</td></tr>
+<tr><td><strong>7</strong></td><td>Instalação nos demais cartórios</td><td>após o passo 5</td></tr>
+</table>
+
+<div class="bom">
+<strong>Recomendação:</strong> não anunciar proteção a nenhum cartório antes de concluir o passo 5.
+A partir do passo 5, a implantação nos demais é repetição do mesmo procedimento — o instalador é
+único e a configuração leva minutos por servidor.
+</div>
+
+<h2>Conclusão</h2>
+
+<p>O produto saiu do papel nesta semana. Deixou de ser uma adaptação de ferramenta de terceiros e
+passou a ser um programa próprio da CH.Com, sem custo de licença por cliente, com instalador
+próprio e identidade visual própria.</p>
+
+<p>O caminho de ida está provado contra a conta real da Amazon. O caminho de volta está construído
+e é a prioridade número um dos próximos dias.</p>
+
+<p>Os defeitos encontrados nesta semana — sete deles graves, incluindo um que faria cartórios
+aparentarem estar protegidos sem nenhuma cópia sendo feita — foram encontrados
+<strong>antes de chegarem a um cliente</strong>. Esse é o objetivo da fase em que estamos.</p>
+
+<p class="nota" style="margin-top:8mm">Relatório emitido em 2 de setembro de 2026.
+Documento de acompanhamento técnico detalhado disponível em
+"O QUE FALTA — leia antes de prometer" na pasta do projeto.</p>
+
+</body></html>
